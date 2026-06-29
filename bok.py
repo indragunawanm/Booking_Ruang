@@ -5,47 +5,50 @@ import os
 from datetime import datetime, time, date
 
 # ==============================================================================
-# 1. KONFIGURASI UTAMA & DATABASE CLOUD PERMANEN (FIXED NAVASI STRUKTUR)
+# 1. KONFIGURASI UTAMA & DATABASE CLOUD PERMANEN (STRUKTUR REGISTRASI NIK)
 # ==============================================================================
 RUANGAN = {"Training 1": "45 Orang", "Training 2": "15 Orang", "Training 3": "15 Orang"}
 CLOUD_DB = "data_booking_cloud.csv"
 USER_DB = "data_user_cloud.csv"
 
-st.set_page_config(page_title="Booking Ruangan ", layout="wide")
+st.set_page_config(page_title="Booking Ruangan Cloud", layout="wide")
 
-# 🌟 KUNCI AMAN ANDROID: Mematikan fitur tarik refresh (Pull-to-Refresh) agar tidak logout otomatis saat di-scroll di HP
+# 🌟 TEMPEL KODE PELINDUNG ANDROID DI SINI 🌟
 st.markdown(
     """
     <style>
     html, body, [data-testid="stAppViewContainer"] {
         overscroll-behavior-y: contain !important;
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+    }
+    .stApp {
+        overflow-y: auto !important;
     }
     </style>
+    <script>
+    var lastY = 0;
+    window.addEventListener('touchstart', function(e) {
+        lastY = e.touches[0].clientY;
+    }, {passive: false});
+
+    window.addEventListener('touchmove', function(e) {
+        var currentY = e.touches[0].clientY;
+        if (window.scrollY === 0 && currentY > lastY) {
+            e.preventDefault(); 
+        }
+        lastY = currentY;
+    }, {passive: false});
+    </script>
     """,
     unsafe_allow_html=True
 )
 
-
+# Batas bawah kode pendeteksi database CSV seperti biasa...
 if not os.path.exists(CLOUD_DB):
     pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"]).to_csv(CLOUD_DB, index=False)
-
-if not os.path.exists(USER_DB):
-    pd.DataFrame([["ADMIN", "adminbooking", "Admin Utama", "MANAGEMENT"]], columns=["Username", "Password", "Nama Lengkap", "Departemen"]).to_csv(USER_DB, index=False)
-
-def load_cloud_data():
-    if not os.path.exists(CLOUD_DB):
-        return pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
-    return pd.read_csv(CLOUD_DB)
-
-def load_user_data():
-    if not os.path.exists(USER_DB):
-        return pd.DataFrame([["ADMIN", "adminbooking", "Admin Utama", "MANAGEMENT"]], columns=["Username", "Password", "Nama Lengkap", "Departemen"])
-    return pd.read_csv(USER_DB)
-
-if 'df_booking_live' not in st.session_state:
-    st.session_state['df_booking_live'] = load_cloud_data()
-
-df_jadwal = st.session_state['df_booking_live']
 
 # ==============================================================================
 # 2. SISTEM NAVIGASI 2 HALAMAN PURE INTERAKTIF (TANPA STRIP TABS)
