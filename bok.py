@@ -11,9 +11,9 @@ RUANGAN = {"Training 1": "45 Orang", "Training 2": "15 Orang", "Training 3": "15
 CLOUD_DB = "data_booking_cloud.csv"
 USER_DB = "data_user_cloud.csv"
 
-st.set_page_config(page_title="Booking Ruangan Cloud", layout="wide")
+st.set_page_config(page_title="Booking Ruangan", layout="wide")
 
-# 🌟 TEMPEL KODE PELINDUNG ANDROID DI SINI 🌟
+# 🌟 KUNCI AMAN HP: Mematikan total fitur tarik refresh Chrome agar bebas scroll sepuasnya di HP Android
 st.markdown(
     """
     <style>
@@ -31,11 +31,11 @@ st.markdown(
     <script>
     var lastY = 0;
     window.addEventListener('touchstart', function(e) {
-        lastY = e.touches[0].clientY;
+        lastY = e.touches.clientY;
     }, {passive: false});
 
     window.addEventListener('touchmove', function(e) {
-        var currentY = e.touches[0].clientY;
+        var currentY = e.touches.clientY;
         if (window.scrollY === 0 && currentY > lastY) {
             e.preventDefault(); 
         }
@@ -46,12 +46,29 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Batas bawah kode pendeteksi database CSV seperti biasa...
 if not os.path.exists(CLOUD_DB):
     pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"]).to_csv(CLOUD_DB, index=False)
 
+if not os.path.exists(USER_DB):
+    pd.DataFrame([["ADMIN", "adminbooking", "Admin Utama", "MANAGEMENT"]], columns=["Username", "Password", "Nama Lengkap", "Departemen"]).to_csv(USER_DB, index=False)
+
+def load_cloud_data():
+    if not os.path.exists(CLOUD_DB):
+        return pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
+    return pd.read_csv(CLOUD_DB)
+
+def load_user_data():
+    if not os.path.exists(USER_DB):
+        return pd.DataFrame([["ADMIN", "adminbooking", "Admin Utama", "MANAGEMENT"]], columns=["Username", "Password", "Nama Lengkap", "Departemen"])
+    return pd.read_csv(USER_DB)
+
+if 'df_booking_live' not in st.session_state:
+    st.session_state['df_booking_live'] = load_cloud_data()
+
+df_jadwal = st.session_state['df_booking_live']
+
 # ==============================================================================
-# 2. SISTEM NAVIGASI 2 HALAMAN PURE INTERAKTIF (TANPA STRIP TABS)
+# 2. SISTEM NAVIGASI LOGIN & DAFTAR (HALAMAN BERSIH TANPA STRIP TABS)
 # ==============================================================================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -60,13 +77,12 @@ if "logged_in" not in st.session_state:
     st.session_state.fullname = ""
     st.session_state.user_dept = ""
 
-# Inisialisasi awal kontrol halaman (Default saat pertama buka: login)
 if "page_control" not in st.session_state:
     st.session_state.page_control = "login"
 
 if not st.session_state.logged_in:
     
-    # 🌟 DISPLAY HALAMAN 1: FORM LOGIN MURNI
+    # --- HALAMAN 1: FORM LOGIN MURNI ---
     if st.session_state.page_control == "login":
         st.subheader("Silakan Masuk Menggunakan NIK dan Password Anda")
         with st.form("form_login"):
@@ -79,23 +95,20 @@ if not st.session_state.logged_in:
                 if not user_match.empty:
                     st.session_state.logged_in = True
                     st.session_state.username = u.upper()
-                    # 🌟 FIX: Memastikan index baris ke-0 dibaca secara presisi menggunakan extractor .iloc[0, ...]
                     st.session_state.fullname = str(user_match.iloc[0]["Nama Lengkap"])
                     st.session_state.user_dept = str(user_match.iloc[0]["Departemen"])
                     st.session_state.user_role = "admin" if u.upper() == "ADMIN" else "user"
                     st.rerun()
-
                 else: 
                     st.error("❌ NIK atau Password yang Anda masukkan salah!")
                     
-        # Tombol navigasi tambahan di bawah form untuk pindah ke halaman pendaftaran
         st.markdown("---")
         st.write("Belum memiliki akun karyawan?")
         if st.button("📝 Klik Di Sini Untuk Daftar Akun Baru"):
             st.session_state.page_control = "daftar"
             st.rerun()
             
-    # 🌟 DISPLAY HALAMAN 2: FORM DAFTAR MURNI
+    # --- HALAMAN 2: FORM DAFTAR MURNI ---
     elif st.session_state.page_control == "daftar":
         st.subheader("Form Pendaftaran Akun Karyawan Baru")
         with st.form("form_daftar", clear_on_submit=True):
@@ -117,16 +130,15 @@ if not st.session_state.logged_in:
                     new_user_row = pd.DataFrame([[reg_nik.upper(), reg_p, reg_name, reg_dept.upper()]], columns=["Username", "Password", "Nama Lengkap", "Departemen"])
                     new_user_row.to_csv(USER_DB, mode='a', header=False, index=False)
                     st.success(f"✅ Registrasi Sukses! Akun NIK '{reg_nik}' berhasil dibuat.")
-                    st.session_state.page_control = "login" # Otomatis tendang kembali ke halaman login utama
+                    st.session_state.page_control = "login"
                     st.rerun()
                     
-        # Tombol kembali ke login jika tidak sengaja mengklik halaman daftar
         st.markdown("---")
         if st.button("⬅️ Sudah Punya Akun? Kembali ke Halaman Login"):
             st.session_state.page_control = "login"
             st.rerun()
 
-# --- AREA HALAMAN UTAMA (JIKA SUDAH BERHASIL LOGIN) ---
+# --- RELEVANSI TAMPILAN JIKA SUDAH MASUK ---
 if st.session_state.logged_in:
     st.sidebar.markdown(f"### 👤 Nama: **{st.session_state.fullname.upper()}**")
     st.sidebar.markdown(f"### 🆔 NIK: **{st.session_state.username}**")
@@ -143,7 +155,7 @@ if st.session_state.logged_in:
         st.session_state.page_control = "login"
         st.rerun()
 
-    st.title("🏢 System Booking Ruangan Training")
+    st.title("🏢 Sistem Booking Ruangan Training")
     cols = st.columns(3)
     for i, (nama, kap) in enumerate(RUANGAN.items()):
         cols[i].metric(label=nama, value=kap)
@@ -220,6 +232,7 @@ if st.session_state.logged_in:
                     df_dept_hari = df_current_db[(df_current_db["Departemen"].astype(str).str.upper() == st.session_state.user_dept.upper()) & (df_current_db["Tanggal"] == tgl_str)]
                     
                     if not df_dept_hari.empty:
+                        # Menggunakan ekstraksi .iloc[0] yang stabil untuk menarik nama pengunci pertama
                         nama_pengunci_pertama = df_dept_hari.iloc[0]["Nama Pemesan"]
                         st.error(f"❌ Gagal! Departemen {st.session_state.user_dept.upper()} sudah melakukan booking di tanggal ini. Silakan hubungi Rekan Anda: **{nama_pengunci_pertama.upper()}** yang sudah booking duluan!")
                     
