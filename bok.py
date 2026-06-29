@@ -13,6 +13,19 @@ USER_DB = "data_user_cloud.csv"
 
 st.set_page_config(page_title="Booking Ruangan ", layout="wide")
 
+# 🌟 KUNCI AMAN ANDROID: Mematikan fitur tarik refresh (Pull-to-Refresh) agar tidak logout otomatis saat di-scroll di HP
+st.markdown(
+    """
+    <style>
+    html, body, [data-testid="stAppViewContainer"] {
+        overscroll-behavior-y: contain !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
 if not os.path.exists(CLOUD_DB):
     pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"]).to_csv(CLOUD_DB, index=False)
 
