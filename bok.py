@@ -5,16 +5,15 @@ import os
 from datetime import datetime, time, date
 
 # ==============================================================================
-# 1. KONFIGURASI UTAMA & DATABASE CLOUD PERMANEN (STRUKTUR REGISTRASI NIK)
+# 1. KONFIGURASI UTAMA & DATABASE CLOUD PERMANEN (ANTI REFRESH HP FIXED)
 # ==============================================================================
 RUANGAN = {"Training 1": "45 Orang", "Training 2": "15 Orang", "Training 3": "15 Orang"}
 CLOUD_DB = "data_booking_cloud.csv"
 USER_DB = "data_user_cloud.csv"
 
-st.set_page_config(page_title="Booking Ruangan", layout="wide")
+st.set_page_config(page_title="Booking Ruangan Cloud", layout="wide")
 
-# 🌟 KUNCI AMAN HP: Mematikan total fitur tarik refresh Chrome agar bebas scroll sepuasnya di HP Android
-# 🌟 KUNCI PARIPURNA ANDROID: Mematikan total sensor pull-to-refresh Chrome HP di semua lapisan elemen
+# 🌟 KUNCI AMAN: Mengunci lapisan sentuh HP Android agar bebas scroll tanpa logout
 st.markdown(
     """
     <style>
@@ -32,19 +31,14 @@ st.markdown(
     }
     </style>
     <script>
-    // Memblokir mutlak perintah tarikan usap jari ke bawah jika posisi scroll berada di paling atas
     var firstY = 0;
     document.addEventListener('touchstart', function(e) {
-        if (e.touches.length === 1) {
-            firstY = e.touches[0].clientY;
-        }
+        if (e.touches.length === 1) { firstY = e.touches.clientY; }
     }, { passive: false });
-
     document.addEventListener('touchmove', function(e) {
         if (e.touches.length === 1) {
-            var currentY = e.touches[0].clientY;
-            // Jika posisi scroll di paling atas dan jari ditarik ke bawah, batalkan perintah browser
-            if (document.documentElement.scrollTop === 0 && bodyScrollTop === 0 && currentY > firstY) {
+            var currentY = e.touches.clientY;
+            if (document.documentElement.scrollTop === 0 && currentY > firstY) {
                 e.preventDefault();
             }
         }
@@ -53,6 +47,17 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
+if not os.path.exists(CLOUD_DB):
+    pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"]).to_csv(CLOUD_DB, index=False)
+
+if not os.path.exists(USER_DB):
+    pd.DataFrame([["ADMIN", "adminbooking", "Admin Utama", "MANAGEMENT"]], columns=["Username", "Password", "Nama Lengkap", "Departemen"]).to_csv(USER_DB, index=False)
+
+def load_cloud_data():
+    if not os.path.exists(CLOUD_DB):
+        return pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
+    return pd.read_csv(CLOUD_DB)
 
 def load_user_data():
     if not os.path.exists(USER_DB):
@@ -65,7 +70,7 @@ if 'df_booking_live' not in st.session_state:
 df_jadwal = st.session_state['df_booking_live']
 
 # ==============================================================================
-# 2. SISTEM NAVIGASI LOGIN & DAFTAR (HALAMAN BERSIH TANPA STRIP TABS)
+# 2. SISTEM NAVIGASI LOGIN & DAFTAR (NATIVE SYSTEM)
 # ==============================================================================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -78,12 +83,10 @@ if "page_control" not in st.session_state:
     st.session_state.page_control = "login"
 
 if not st.session_state.logged_in:
-    
-    # --- HALAMAN 1: FORM LOGIN MURNI ---
     if st.session_state.page_control == "login":
         st.subheader("Silakan Masuk Menggunakan NIK dan Password Anda")
         with st.form("form_login"):
-            u = st.text_input("Masukkan NIK Anda").strip()
+            u = st.text_input("Masukkan NIK Anda (Khusus Admin ketik: ADMIN)").strip()
             p = st.text_input("Masukkan Password", type="password").strip()
             if st.form_submit_button("Masuk Aplikasi"):
                 df_user = load_user_data()
@@ -92,20 +95,18 @@ if not st.session_state.logged_in:
                 if not user_match.empty:
                     st.session_state.logged_in = True
                     st.session_state.username = u.upper()
-                    st.session_state.fullname = str(user_match.iloc[0]["Nama Lengkap"])
-                    st.session_state.user_dept = str(user_match.iloc[0]["Departemen"])
+                    st.session_state.fullname = str(user_match["Nama Lengkap"].values[0])
+                    st.session_state.user_dept = str(user_match["Departemen"].values[0])
                     st.session_state.user_role = "admin" if u.upper() == "ADMIN" else "user"
                     st.rerun()
                 else: 
                     st.error("❌ NIK atau Password yang Anda masukkan salah!")
                     
         st.markdown("---")
-        st.write("Belum memiliki akun karyawan?")
         if st.button("📝 Klik Di Sini Untuk Daftar Akun Baru"):
             st.session_state.page_control = "daftar"
             st.rerun()
             
-    # --- HALAMAN 2: FORM DAFTAR MURNI ---
     elif st.session_state.page_control == "daftar":
         st.subheader("Form Pendaftaran Akun Karyawan Baru")
         with st.form("form_daftar", clear_on_submit=True):
@@ -135,7 +136,6 @@ if not st.session_state.logged_in:
             st.session_state.page_control = "login"
             st.rerun()
 
-# --- RELEVANSI TAMPILAN JIKA SUDAH MASUK ---
 if st.session_state.logged_in:
     st.sidebar.markdown(f"### 👤 Nama: **{st.session_state.fullname.upper()}**")
     st.sidebar.markdown(f"### 🆔 NIK: **{st.session_state.username}**")
@@ -152,7 +152,7 @@ if st.session_state.logged_in:
         st.session_state.page_control = "login"
         st.rerun()
 
-    st.title("🏢 Sistem Booking Ruangan Training")
+    st.title("🏢 Sistem Booking Ruangan Training Cloud")
     cols = st.columns(3)
     for i, (nama, kap) in enumerate(RUANGAN.items()):
         cols[i].metric(label=nama, value=kap)
@@ -194,14 +194,18 @@ if st.session_state.logged_in:
     # ==============================================================================
     # 4. FORM BOOKING RUANGAN (WELCOME BANNER, KUNCI DEPT HARIAN & BULAN BERJALAN)
     # ==============================================================================
-    st.markdown(f"### 🎉 Welcome, {st.session_state.fullname.upper()}!")
+    # Teks sambutan dinamis membersihkan karakter tanda kurung siku bawaan array
+    fullname_clean = str(st.session_state.fullname).replace("[", "").replace("]", "").replace("'", "").replace('"', '')
+    user_dept_clean = str(st.session_state.user_dept).replace("[", "").replace("]", "").replace("'", "").replace('"', '')
+    
+    st.markdown(f"### 🎉 Welcome, {fullname_clean.upper()}!")
     st.subheader("📅 Form Peminjaman Ruangan Training")
     
     with st.container(border=True):
         with st.form("form_booking", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
-                st.info(f"🏢 Departemen Pengunci: **{st.session_state.user_dept.upper()}**")
+                st.info(f"🏢 Departemen Pengunci: **{user_dept_clean.upper()}**")
                 r_pilih = st.selectbox("Pilih Ruangan", list(RUANGAN.keys()))
                 tanggal = st.date_input("Tanggal Pinjam", min_value=datetime.today().date())
             with col2:
@@ -226,12 +230,12 @@ if st.session_state.logged_in:
                     df_current_db = load_cloud_data()
                     
                     # 🔒 KUNCI TINGKAT DEPARTEMEN/SECTION HARIAN (Anti-Titip Nama Rekan Setim)
-                    df_dept_hari = df_current_db[(df_current_db["Departemen"].astype(str).str.upper() == st.session_state.user_dept.upper()) & (df_current_db["Tanggal"] == tgl_str)]
+                    df_dept_hari = df_current_db[(df_current_db["Departemen"].astype(str).str.upper() == user_dept_clean.upper()) & (df_current_db["Tanggal"] == tgl_str)]
                     
                     if not df_dept_hari.empty:
-                        # Menggunakan ekstraksi .iloc[0] yang stabil untuk menarik nama pengunci pertama
+                        # Menggunakan ekstraksi .iloc yang stabil untuk menarik nama pengunci pertama
                         nama_pengunci_pertama = df_dept_hari.iloc[0]["Nama Pemesan"]
-                        st.error(f"❌ Gagal! Departemen {st.session_state.user_dept.upper()} sudah melakukan booking di tanggal ini. Silakan hubungi Rekan Anda: **{nama_pengunci_pertama.upper()}** yang sudah booking duluan!")
+                        st.error(f"❌ Gagal! Departemen {user_dept_clean.upper()} sudah melakukan booking di tanggal ini. Silakan hubungi Rekan Anda: **{str(nama_pengunci_pertama).upper()}** yang sudah booking duluan!")
                     
                     else:
                         # DETEKSI BENTROK JAM SEJARAH RUANGAN DENGAN DEPT LAIN
@@ -246,7 +250,7 @@ if st.session_state.logged_in:
                             st.error("❌ Gagal! Ruangan sudah dipesan pada jam tersebut oleh departemen lain.")
                         else:
                             # Suntik data ke database CSV pusat
-                            new_row = pd.DataFrame([[st.session_state.user_dept.upper(), r_pilih, tgl_str, j_mulai.strftime("%H:%M"), j_selesai.strftime("%H:%M"), keperluan, st.session_state.fullname]], 
+                            new_row = pd.DataFrame([[user_dept_clean.upper(), r_pilih, tgl_str, j_mulai.strftime("%H:%M"), j_selesai.strftime("%H:%M"), keperluan, fullname_clean]], 
                                                    columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
                             new_row.to_csv(CLOUD_DB, mode='a', header=False, index=False)
                             
@@ -292,5 +296,3 @@ if st.session_state.logged_in:
                         info += f"<div style='font-size: 11px; margin-top: 4px; background-color: #ffe0b2; color: #e65100; padding: 3px; border-radius:3px; border: 1px solid #ffcc80;'>• <b>{r['Jam Mulai']}</b> [{r['Ruangan']}] {str(r['Departemen']).upper()} ({r['Nama Pemesan']})</div>"
                     html_cal += f'<td style="border: 2px solid #555; background-color: {bg}; padding: 6px; color:#000000;"><b>{d}</b>{info}</td>'
             html_cal += "</tr>"
-            
-    st.components.v1.html(html_cal + "</table>", height=560)
