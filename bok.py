@@ -14,48 +14,45 @@ USER_DB = "data_user_cloud.csv"
 st.set_page_config(page_title="Booking Ruangan", layout="wide")
 
 # 🌟 KUNCI AMAN HP: Mematikan total fitur tarik refresh Chrome agar bebas scroll sepuasnya di HP Android
+# 🌟 KUNCI PARIPURNA ANDROID: Mematikan total sensor pull-to-refresh Chrome HP di semua lapisan elemen
 st.markdown(
     """
     <style>
-    html, body, [data-testid="stAppViewContainer"] {
+    html, body, [data-testid="stAppViewContainer"], .stApp {
+        overscroll-behavior: contain !important;
         overscroll-behavior-y: contain !important;
-        position: fixed;
-        width: 100%;
-        height: 100%;
-        overflow: hidden;
+        position: fixed !important;
+        width: 100% !important;
+        height: 100% !important;
+        overflow: hidden !important;
     }
-    .stApp {
+    [data-testid="stMainViewContainer"] {
         overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
     }
     </style>
     <script>
-    var lastY = 0;
-    window.addEventListener('touchstart', function(e) {
-        lastY = e.touches.clientY;
-    }, {passive: false});
-
-    window.addEventListener('touchmove', function(e) {
-        var currentY = e.touches.clientY;
-        if (window.scrollY === 0 && currentY > lastY) {
-            e.preventDefault(); 
+    // Memblokir mutlak perintah tarikan usap jari ke bawah jika posisi scroll berada di paling atas
+    var firstY = 0;
+    document.addEventListener('touchstart', function(e) {
+        if (e.touches.length === 1) {
+            firstY = e.touches[0].clientY;
         }
-        lastY = currentY;
-    }, {passive: false});
+    }, { passive: false });
+
+    document.addEventListener('touchmove', function(e) {
+        if (e.touches.length === 1) {
+            var currentY = e.touches[0].clientY;
+            // Jika posisi scroll di paling atas dan jari ditarik ke bawah, batalkan perintah browser
+            if (document.documentElement.scrollTop === 0 && bodyScrollTop === 0 && currentY > firstY) {
+                e.preventDefault();
+            }
+        }
+    }, { passive: false });
     </script>
     """,
     unsafe_allow_html=True
 )
-
-if not os.path.exists(CLOUD_DB):
-    pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"]).to_csv(CLOUD_DB, index=False)
-
-if not os.path.exists(USER_DB):
-    pd.DataFrame([["ADMIN", "adminbooking", "Admin Utama", "MANAGEMENT"]], columns=["Username", "Password", "Nama Lengkap", "Departemen"]).to_csv(USER_DB, index=False)
-
-def load_cloud_data():
-    if not os.path.exists(CLOUD_DB):
-        return pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
-    return pd.read_csv(CLOUD_DB)
 
 def load_user_data():
     if not os.path.exists(USER_DB):
