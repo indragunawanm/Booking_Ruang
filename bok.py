@@ -163,7 +163,7 @@ if st.session_state.logged_in:
     st.markdown("---")
     
     # ==============================================================================
-    # 3. PANEL ADMIN (EDIT LIVE - VARIABEL SUDAH DI-FIX)
+    # 3. PANEL ADMIN (EDIT LIVE)
     # ==============================================================================
     if st.session_state.user_role == "admin":
         st.subheader(" Panel Admin: Edit & Pembatalan Jadwal Booking")
@@ -195,7 +195,7 @@ if st.session_state.logged_in:
         st.markdown("---")
         
     # ==============================================================================
-    # 4. FORM BOOKING RUANGAN (DENGAN REVISI TOTAL LOGIKA MINGGU BERJALAN)
+    # 4. FORM BOOKING RUANGAN (LOGIKA MINGGU BERJALAN YANG VALID)
     # ==============================================================================
     fullname_clean = str(st.session_state.fullname).replace("[", "").replace("]", "").replace("'", "").replace('"', '')
     user_dept_clean = str(st.session_state.user_dept).replace("[", "").replace("]", "").replace("'", "").replace('"', '')
@@ -219,7 +219,7 @@ if st.session_state.logged_in:
                 hari_ini = datetime.today().date()
                 tgl_str = str(tanggal)
                 
-                # Mengambil NOMOR MINGGU dan TAHUN dari isocalendar (Format: tuple)
+                # Mengambil Tahun ISO dan Nomor Minggu ISO secara tepat (Format Tuple)
                 iso_ini = hari_ini.isocalendar()
                 iso_booking = tanggal.isocalendar()
                 
@@ -233,10 +233,10 @@ if st.session_state.logged_in:
                     st.error(" Jam Selesai salah! Harus lebih besar dari Jam Mulai.")
                     bisa_simpan = False
                     
-                # PEMBATASAN BULAN & PENGECUALIAN MINGGU BERJALAN YANG VALID
+                # Aturan Bulan Berjalan dengan Pengecualian Minggu Berjalan
                 if bisa_simpan and (tanggal.month != hari_ini.month or tanggal.year != hari_ini.year):
-                    # iso[0] adalah Tahun ISO, iso[1] adalah Nomor Minggu ISO
-                    if (iso_booking[1] != iso_ini[1]) or (iso_booking[0] != iso_ini[0]):
+                    # iso[0] = Tahun ISO, iso[1] = Nomor Minggu ISO
+                    if (iso_booking[0] != iso_ini[0]) or (iso_booking[1] != iso_ini[1]):
                         st.error(f" Gagal! Anda hanya diperbolehkan melakukan booking untuk bulan aktif berjalan saat ini ({calendar.month_name[hari_ini.month]} {hari_ini.year}) atau dalam minggu berjalan yang sama.")
                         bisa_simpan = False
                         
@@ -244,7 +244,7 @@ if st.session_state.logged_in:
                     df_db = load_cloud_data()
                     df_dept_hari = df_db[(df_db["Departemen"].astype(str).str.upper() == user_dept_clean.upper()) & (df_db["Tanggal"] == tgl_str)]
                     if not df_dept_hari.empty:
-                        nama_pengunci = df_dept_hari["Nama Pemesan"].values[0]
+                        nama_pengunci = df_dept_hari["Nama Pemesan"].values
                         st.error(f" Gagal! Departemen {user_dept_clean.upper()} sudah melakukan booking di tanggal ini. Silakan hubungi Rekan Anda: **{str(nama_pengunci).upper()}** yang sudah booking duluan!")
                         bisa_simpan = False
                         
@@ -271,7 +271,7 @@ if st.session_state.logged_in:
     st.markdown("---")
     
     # ==============================================================================
-    # 5. TAMPILAN KALENDER BULANAN KERJA INTERAKTIF (ANTI CRASH / AMAN)
+    # 5. TAMPILAN KALENDER BULANAN KERJA INTERAKTIF (PROTEKSI PENUH ANTI-CRASH)
     # ==============================================================================
     st.subheader(" Kalender Pemakaian Ruang Training (Senin - Jumat)")
     if "m" not in st.session_state: st.session_state.m = datetime.today().month
@@ -302,3 +302,4 @@ if st.session_state.logged_in:
                 else:
                     tgl_cek = f"{st.session_state.y}-{st.session_state.m:02d}-{d:02d}"
                     df_hari = df_cal[df_cal["Tanggal"] == tgl_cek]
+
