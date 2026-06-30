@@ -94,7 +94,7 @@ if not st.session_state.logged_in:
 if st.session_state.logged_in:
     df_fresh_data = load_cloud_data()
     
-    # 🛠️ AMANKAN STRING METADATA: Dibersihkan total di baris paling atas sebelum dibaca form
+    # AMANKAN STRING METADATA: Dibersihkan total di baris paling atas sebelum dibaca form
     f_raw = str(st.session_state.fullname)
     d_raw = str(st.session_state.user_dept)
     
@@ -133,7 +133,7 @@ if st.session_state.logged_in:
                 hari_ini = datetime.today().date()
                 tgl_str = str(tanggal)
                 
-                # Filter Minggu ISO: Mengambil elemen tuple indeks 1 (Nomor Minggu) dan indeks 0 (Tahun ISO)
+                # Filter Minggu ISO
                 iso_ini = hari_ini.isocalendar()
                 iso_booking = tanggal.isocalendar()
                 bisa_simpan = True
@@ -145,6 +145,7 @@ if st.session_state.logged_in:
                     st.error(" Jam Selesai harus lebih besar dari Jam Mulai.")
                     bisa_simpan = False
                 if bisa_simpan and (tanggal.month != hari_ini.month or tanggal.year != hari_ini.year):
+                    # iso[1] adalah elemen penunjuk Nomor Minggu ISO murni (integer)
                     if (iso_booking[1] != iso_ini[1]) or (iso_booking[0] != iso_ini[0]):
                         st.error(f" Gagal! Diizinkan hanya untuk bulan berjalan atau dalam minggu berjalan yang sama.")
                         bisa_simpan = False
@@ -162,7 +163,7 @@ if st.session_state.logged_in:
                     st.rerun()
 
     # ==============================================================================
-    # 5. TAMPILAN KALENDER METODE LIST DATA (ANTI-CRASH TOTAL)
+    # 5. TAMPILAN KALENDER PENANGGALAN KERJA (SENIN - JUMAT) AKURAT 100%
     # ==============================================================================
     st.markdown("---")
     st.subheader(" Kalender Pemakaian Ruang Training (Senin - Jumat)")
@@ -182,27 +183,43 @@ if st.session_state.logged_in:
     nama_bulan = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
     nav2.markdown(f"<h3 style='text-align: center;'> 📅 {nama_bulan[st.session_state.m]} {st.session_state.y}</h3>", unsafe_allow_html=True)
 
-    html_cal = '<table style="width:100%; border-collapse: collapse; background-color: white; border: 2px solid #555;"><tr style="background-color: #e0e0e0; text-align: center; font-weight: bold;"><th style="padding: 10px; border: 2px solid #555;">Senin</th><th style="padding: 10px; border: 2px solid #555;">Selasa</th><th style="padding: 10px; border: 2px solid #555;">Rabu</th><th style="padding: 10px; border: 2px solid #555;">Kamis</th><th style="padding: 10px; border: 2px solid #555;">Jum\'at</th></tr>'
+    html_cal = '<table style="width:100%; border-collapse: collapse; background-color: white; border: 2px solid #555;"><tr style="background-color: #e0e0e0; text-align: center; font-weight: bold;"><th style="padding: 10px; border: 2px solid #555; width: 20%;">Senin</th><th style="padding: 10px; border: 2px solid #555; width: 20%;">Selasa</th><th style="padding: 10px; border: 2px solid #555; width: 20%;">Rabu</th><th style="padding: 10px; border: 2px solid #555; width: 20%;">Kamis</th><th style="padding: 10px; border: 2px solid #555; width: 20%;">Jum\'at</th></tr>'
     
     df_cal = load_cloud_data()
     raw_records = df_cal.to_dict(orient="records") if not df_cal.empty else []
+    
+    # MENENTUKAN HARI PERTAMA DALAM BULAN BERJALAN
+    hari_pertama_bulan = date(st.session_state.y, st.session_state.m, 1).weekday() # 0=Senin, 1=Selasa, dst.
+    
     html_cal += "<tr style='height: 110px; vertical-align: top;'> "
     kolom_hari = 0
     
+    # Langkah 1: Mengisi kotak kosong jika hari pertama bulan bukan hari Senin
+    if hari_pertama_bulan < 5:  # Jika hari pertama jatuh di antara Senin - Jumat
+        for blank in range(hari_pertama_bulan):
+            html_cal += "<td style='border: 2px solid #555; background-color: #f7f7f7;'></td>"
+            kolom_hari += 1
+
+    # Langkah 2: Mengisi angka tanggal asli secara berurutan
     for d in range(1, 32):
         try:
             valid_date = date(st.session_state.y, st.session_state.m, d)
             nama_hari_ke = valid_date.weekday()
+            
+            # Abaikan jika hari Sabtu (5) atau Minggu (6)
             if nama_hari_ke > 4:
                 continue
+                
             tgl_cek = f"{st.session_state.y}-{st.session_state.m:02d}-{d:02d}"
             list_hari = [row for row in raw_records if str(row.get("Tanggal", "")).strip() == tgl_cek]
             bg = "#fff3e0" if len(list_hari) > 0 else "#ffffff"
             info = ""
             for r in list_hari:
                 info += f"<div style='font-size: 11px; margin-top: 4px; background-color: #ffe0b2; color: #e65100; padding: 3px; border-radius:3px; border: 1px solid #ffcc80;'>• <b>{r.get('Jam Mulai')}</b> [{r.get('Ruangan')}] {str(r.get('Departemen')).upper()}</div>"
-            html_cal += f'<td style="border: 2px solid #555; background-color: {bg}; padding: 6px; color:#000000; width: 20%;"><b>{d}</b>{info}</td>'
+            
+            html_cal += f'<td style="border: 2px solid #555; background-color: {bg}; padding: 6px; color:#000000;"><b>{d}</b>{info}</td>'
             kolom_hari += 1
+            
             if kolom_hari == 5:
                 html_cal += "</tr><tr style='height: 110px; vertical-align: top;'>"
                 kolom_hari = 0
@@ -211,3 +228,4 @@ if st.session_state.logged_in:
             
     html_cal += "</tr></table>"
     st.markdown(html_cal, unsafe_allow_html=True)
+
