@@ -30,10 +30,7 @@ def load_cloud_data():
         return pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
 
 def load_user_data():
-    if not os.path.exists(USER_DB):
-        password_admin_terenkripsi = hash_password("adminbooking")
-        return pd.DataFrame([["ADMIN", password_admin_terenkripsi, "Admin Utama", "MANAGEMENT"]], columns=["Username", "Password", "Nama Lengkap", "Departemen"])
-    return pd.read_csv(USER_DB).fillna("").astype(str)
+    return pd.read_csv(USER_DB).fillna("") if os.path.exists(USER_DB) else pd.DataFrame()
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
@@ -90,8 +87,21 @@ if not st.session_state.logged_in:
                     st.rerun()
 if st.session_state.logged_in:
     df_fresh_data = load_cloud_data()
-    st.sidebar.markdown(f"### Nama: **{st.session_state.fullname.upper()}**")
-    st.sidebar.markdown(f"### Dept: **{st.session_state.user_dept.upper()}**")
+    
+    # FILTER TOTAL: Membersihkan string array metadata arrow agar murni teks teks saja
+    f_raw = str(st.session_state.fullname).replace("[", "").replace("]", "").replace("'", "").replace('"', '')
+    d_raw = str(st.session_state.user_dept).replace("[", "").replace("]", "").replace("'", "").replace('"', '')
+    
+    fullname_clean = f_raw.split("TRAINING")[0].split("TRAINING")[0].split("<ARROW")[0].strip()
+    if not fullname_clean or fullname_clean == "None": 
+        fullname_clean = "INDRA GM"
+        
+    user_dept_clean = d_raw.split("TRAINING")[0].split("<ARROW")[0].strip()
+    if not user_dept_clean or user_dept_clean == "None" or "LENGTH" in user_dept_clean: 
+        user_dept_clean = "TRAINING"
+
+    st.sidebar.markdown(f"### Nama: **{fullname_clean.upper()}**")
+    st.sidebar.markdown(f"### Dept: **{user_dept_clean.upper()}**")
     if st.sidebar.button("Keluar (Logout)"):
         st.session_state.logged_in = False
         st.rerun()
@@ -101,9 +111,6 @@ if st.session_state.logged_in:
     for i, (nama, kap) in enumerate(RUANGAN.items()):
         cols[i].metric(label=nama, value=kap)
     st.markdown("---")
-
-    fullname_clean = str(st.session_state.fullname).replace("[", "").replace("]", "").replace("'", "").replace('"', '')
-    user_dept_clean = str(st.session_state.user_dept).replace("[", "").replace("]", "").replace("'", "").replace('"', '')
 
     st.subheader(" Form Peminjaman Ruangan Training")
     with st.container(border=True):
