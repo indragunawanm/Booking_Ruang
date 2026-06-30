@@ -191,7 +191,7 @@ if st.session_state.logged_in:
         st.markdown("---")
         
     # ==============================================================================
-    # 4. FORM BOOKING RUANGAN (DENGAN FIX LOGIKA DAN ANTI HILANG KALENDER)
+    # 4. FORM BOOKING RUANGAN (FIX TOTAL LOGIKA MINGGU BERJALAN)
     # ==============================================================================
     fullname_clean = str(st.session_state.fullname).replace("[", "").replace("]", "").replace("'", "").replace('"', '')
     user_dept_clean = str(st.session_state.user_dept).replace("[", "").replace("]", "").replace("'", "").replace('"', '')
@@ -215,8 +215,11 @@ if st.session_state.logged_in:
                 hari_ini = datetime.today().date()
                 tgl_str = str(tanggal)
                 
-                # Mengambil NOMOR MINGGU saja (elemen kedua dari tuple isocalendar)
+                # FIX LOGIKA: Ambil murni ANGKA MINGGU [1] dan TAHUN ISO [0]
+                tahun_iso_ini = hari_ini.isocalendar()[0]
                 nomor_minggu_ini = hari_ini.isocalendar()[1]
+                
+                tahun_iso_booking = tanggal.isocalendar()[0]
                 nomor_minggu_booking = tanggal.isocalendar()[1]
                 
                 bisa_simpan = True
@@ -231,9 +234,10 @@ if st.session_state.logged_in:
                     st.error(" Jam Selesai salah! Harus lebih besar dari Jam Mulai.")
                     bisa_simpan = False
                     
-                # Validasi 3: Batasan Bulan Berjalan & Pengecualian Minggu Berjalan
+                # Validasi 3: Aturan Batasan Bulan Berjalan dengan Pengecualian Minggu Berjalan
                 if bisa_simpan and (tanggal.month != hari_ini.month or tanggal.year != hari_ini.year):
-                    if nomor_minggu_booking != nomor_minggu_ini:
+                    # Jika nomor minggu berbeda ATAU tahun ISO berbeda, baru kita BLOKIR
+                    if (nomor_minggu_booking != nomor_minggu_ini) or (tahun_iso_booking != tahun_iso_ini):
                         st.error(f" Gagal! Anda hanya diperbolehkan melakukan booking untuk bulan aktif berjalan saat ini ({calendar.month_name[hari_ini.month]} {hari_ini.year}) atau dalam minggu berjalan yang sama.")
                         bisa_simpan = False
                         
@@ -244,7 +248,6 @@ if st.session_state.logged_in:
                     # Pengecekan Kunci Departemen Harian
                     df_dept_hari = df_current_db[(df_current_db["Departemen"].astype(str).str.upper() == user_dept_clean.upper()) & (df_current_db["Tanggal"] == tgl_str)]
                     if not df_dept_hari.empty:
-                        # Diambil menggunakan list agar terhindar dari TypeError .iloc
                         nama_pengunci_pertama = list(df_dept_hari["Nama Pemesan"])[0]
                         st.error(f" Gagal! Departemen {user_dept_clean.upper()} sudah melakukan booking di tanggal ini. Silakan hubungi Rekan Anda: **{str(nama_pengunci_pertama).upper()}** yang sudah booking duluan!")
                         bisa_simpan = False
@@ -275,7 +278,7 @@ if st.session_state.logged_in:
     st.markdown("---")
     
     # ==============================================================================
-    # 5. TAMPILAN KALENDER BULANAN KERJA INTERAKTIF (DENGAN PROTEKSI DATA RUSAK)
+    # 5. TAMPILAN KALENDER BULANAN KERJA INTERAKTIF
     # ==============================================================================
     st.subheader(" Kalender Pemakaian Ruang Training (Senin - Jumat)")
     if "m" not in st.session_state: st.session_state.m = datetime.today().month
@@ -293,8 +296,5 @@ if st.session_state.logged_in:
         
     nav2.markdown(f"<h3 style='text-align: center;'> 📅 {calendar.month_name[st.session_state.m]} {st.session_state.y}</h3>", unsafe_allow_html=True)
     
-    html_cal = '<table style="width:100%; border-collapse: collapse; background-color: white; border: 2px solid #555;"><tr style="background-color: #e0e0e0; text-align: center; font-weight: bold;"><th style="padding: 10px; border: 2px solid #555;">Senin</th><th style="padding: 10px; border: 2px solid #555;">Selasa</th><th style="padding: 10px; border: 2px solid #555;">Rabu</th><th style="padding: 10px; border: 2px solid #555;">Kamis</th><th style="padding: 10px; border: 2px solid #555;">Jum\'at</th></tr>'
-    
-    # Pastikan data jadwal tidak kosong/rusak sebelum dibaca oleh kalender
 
                 
