@@ -215,7 +215,7 @@ if st.session_state.logged_in:
                 hari_ini = datetime.today().date()
                 tgl_str = str(tanggal)
                 
-                # Mengambil nomor minggu ISO (kembalian berupa integer nomor minggu, misal 27)
+                # Mengambil nomor minggu ISO secara murni (berupa angka integer)
                 nomor_minggu_ini = hari_ini.isocalendar()[1]
                 nomor_minggu_booking = tanggal.isocalendar()[1]
                 
@@ -235,33 +235,42 @@ if st.session_state.logged_in:
                         st.error(f" Gagal! Anda hanya diperbolehkan melakukan booking untuk bulan aktif berjalan saat ini ({calendar.month_name[hari_ini.month]} {hari_ini.year}) atau dalam minggu berjalan yang sama.")
                         st.stop()
                     
-                # PROSES PENGECEKAN DATABASE
+                # AMBIL DATABASE DAN BERSIHKAN DATA KOSONG (ANTI NYANGKUT)
                 df_current_db = load_cloud_data()
+                df_current_db = df_current_db.fillna("") # Mengisi data kosong dengan teks kosong agar tidak crash
+                
+                # Pengecekan Kunci Departemen Harian
                 df_dept_hari = df_current_db[(df_current_db["Departemen"].astype(str).str.upper() == user_dept_clean.upper()) & (df_current_db["Tanggal"] == tgl_str)]
                 
                 if not df_dept_hari.empty:
-                    # FIX INDEKS: Menggunakan .iloc[0] untuk mengambil baris pertama terlebih dahulu, baru kolomnya
-                    nama_pengunci_pertama = df_dept_hari.iloc[0]["Nama Pemesan"]
+                    # Diambil dengan cara paling aman menggunakan .values untuk menghindari error indeks pandas
+                    nama_pengunci_pertama = df_dept_hari["Nama Pemesan"].values[0]
                     st.error(f" Gagal! Departemen {user_dept_clean.upper()} sudah melakukan booking di tanggal ini. Silakan hubungi Rekan Anda: **{str(nama_pengunci_pertama).upper()}** yang sudah booking duluan!")
                     st.stop()
                     
+                # Pengecekan Jam Bentrok Ruangan
                 df_hari = df_current_db[(df_current_db["Ruangan"] == r_pilih) & (df_current_db["Tanggal"] == tgl_str)]
                 bentrok = False
                 for _, row in df_hari.iterrows():
-                    if not (j_selesai.strftime("%H:%M") <= str(row["Jam Mulai"]) or j_mulai.strftime("%H:%M") >= str(row["Jam Selesai"])):
-                        bentrok = True
-                        break
+                    jam_mulai_db = str(row["Jam Mulai"]).strip()
+                    jam_selesai_db = str(row["Jam Selesai"]).strip()
+                    
+                    if jam_mulai_db and jam_selesai_db:
+                        if not (j_selesai.strftime("%H:%M") <= jam_mulai_db or j_mulai.strftime("%H:%M") >= jam_selesai_db):
+                            bentrok = True
+                            break
                         
                 if bentrok:
                     st.error(" Gagal! Ruangan sudah dipesan pada jam tersebut oleh departemen lain.")
                     st.stop()
                     
-                # PROSES SIMPAN DATA
+                # PROSES SIMPAN DATA BARU
                 new_row = pd.DataFrame([[user_dept_clean.upper(), r_pilih, tgl_str, j_mulai.strftime("%H:%M"), j_selesai.strftime("%H:%M"), keperluan, fullname_clean]], columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
                 new_row.to_csv(CLOUD_DB, mode='a', header=False, index=False)
                 st.session_state['df_booking_live'] = load_cloud_data()
                 st.success(" Berhasil dipesan dan tersimpan permanen di cloud server!")
                 st.rerun()
+
 
 
 
