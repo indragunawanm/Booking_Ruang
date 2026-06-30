@@ -134,12 +134,11 @@ if not st.session_state.logged_in:
         if st.button(" Sudah Punya Akun? Kembali ke Halaman Login"):
             st.session_state.page_control = "login"
             st.rerun()
-
 # ==============================================================================
 # HALAMAN UTAMA (SETELAH BERHASIL LOGIN)
 # ==============================================================================
 if st.session_state.logged_in:
-    df_live = load_cloud_data()
+    df_fresh_data = load_cloud_data()
     
     st.sidebar.markdown(f"### Nama: **{st.session_state.fullname.upper()}**")
     st.sidebar.markdown(f"### NIK: **{st.session_state.username}**")
@@ -164,15 +163,15 @@ if st.session_state.logged_in:
     st.markdown("---")
     
     # ==============================================================================
-    # 3. PANEL ADMIN (EDIT LIVE)
+    # 3. PANEL ADMIN (EDIT LIVE - VARIABEL SUDAH DI-FIX)
     # ==============================================================================
     if st.session_state.user_role == "admin":
         st.subheader(" Panel Admin: Edit & Pembatalan Jadwal Booking")
         st.write(" *Ubah detail data langsung pada tabel di bawah untuk mengedit, lalu klik tombol **Simpan Perubahan Jadwal Admin**.*")
         
-        if not df_live.empty:
+        if not df_fresh_data.empty:
             df_admin_edit = st.data_editor(
-                df_live,
+                df_fresh_data,
                 hide_index=False,
                 num_rows="dynamic",
                 column_config={
@@ -196,6 +195,110 @@ if st.session_state.logged_in:
         st.markdown("---")
         
     # ==============================================================================
-    # 4. FORM BOOKING RUANGAN (DENGAN FIX LOGIKA DAN ANTI HILANG KALENDER)
+    # 4. FORM BOOKING RUANGAN (DENGAN REVISI TOTAL LOGIKA MINGGU BERJALAN)
     # ==============================================================================
     fullname_clean = str(st.session_state.fullname).replace("[", "").replace("]", "").replace("'", "").replace('"', '')
+    user_dept_clean = str(st.session_state.user_dept).replace("[", "").replace("]", "").replace("'", "").replace('"', '')
+    
+    st.markdown(f"### Welcome, {fullname_clean.upper()}!")
+    st.subheader(" Form Peminjaman Ruangan Training")
+    
+    with st.container(border=True):
+        with st.form("form_booking", clear_on_submit=True):
+            col1, col2 = st.columns(2)
+            with col1:
+                st.info(f" Departemen Pengunci: **{user_dept_clean.upper()}**")
+                r_pilih = st.selectbox("Pilih Ruangan", list(RUANGAN.keys()))
+                tanggal = st.date_input("Tanggal Pinjam", min_value=datetime.today().date())
+            with col2:
+                j_mulai = st.time_input("Jam Mulai", value=time(8, 0))
+                j_selesai = st.time_input("Jam Selesai", value=time(9, 0))
+                keperluan = st.text_area("Keperluan / Nama Training")
+                
+            if st.form_submit_button("Booking Sekarang"):
+                hari_ini = datetime.today().date()
+                tgl_str = str(tanggal)
+                
+                # Mengambil NOMOR MINGGU dan TAHUN dari isocalendar (Format: tuple)
+                iso_ini = hari_ini.isocalendar()
+                iso_booking = tanggal.isocalendar()
+                
+                bisa_simpan = True
+                
+                if not keperluan.strip():
+                    st.error(" Isi keperluan atau nama training!")
+                    bisa_simpan = False
+                    
+                if bisa_simpan and j_mulai >= j_selesai:
+                    st.error(" Jam Selesai salah! Harus lebih besar dari Jam Mulai.")
+                    bisa_simpan = False
+                    
+                # PEMBATASAN BULAN & PENGECUALIAN MINGGU BERJALAN YANG VALID
+                if bisa_simpan and (tanggal.month != hari_ini.month or tanggal.year != hari_ini.year):
+                    # iso[0] adalah Tahun ISO, iso[1] adalah Nomor Minggu ISO
+                    if (iso_booking[1] != iso_ini[1]) or (iso_booking[0] != iso_ini[0]):
+                        st.error(f" Gagal! Anda hanya diperbolehkan melakukan booking untuk bulan aktif berjalan saat ini ({calendar.month_name[hari_ini.month]} {hari_ini.year}) atau dalam minggu berjalan yang sama.")
+                        bisa_simpan = False
+                        
+                if bisa_simpan:
+                    df_db = load_cloud_data()
+                    df_dept_hari = df_db[(df_db["Departemen"].astype(str).str.upper() == user_dept_clean.upper()) & (df_db["Tanggal"] == tgl_str)]
+                    if not df_dept_hari.empty:
+                        nama_pengunci = df_dept_hari["Nama Pemesan"].values[0]
+                        st.error(f" Gagal! Departemen {user_dept_clean.upper()} sudah melakukan booking di tanggal ini. Silakan hubungi Rekan Anda: **{str(nama_pengunci).upper()}** yang sudah booking duluan!")
+                        bisa_simpan = False
+                        
+                    if bisa_simpan:
+                        df_hari = df_db[(df_db["Ruangan"] == r_pilih) & (df_db["Tanggal"] == tgl_str)]
+                        bentrok = False
+                        for _, row in df_hari.iterrows():
+                            jam_mulai_db = str(row["Jam Mulai"]).strip()
+                            jam_selesai_db = str(row["Jam Selesai"]).strip()
+                            if jam_mulai_db and jam_selesai_db:
+                                if not (j_selesai.strftime("%H:%M") <= jam_mulai_db or j_mulai.strftime("%H:%M") >= jam_selesai_db):
+                                    bentrok = True
+                                    break
+                        if bentrok:
+                            st.error(" Gagal! Ruangan sudah dipesan pada jam tersebut oleh departemen lain.")
+                            bisa_simpan = False
+                            
+                if bisa_simpan:
+                    new_row = pd.DataFrame([[user_dept_clean.upper(), r_pilih, tgl_str, j_mulai.strftime("%H:%M"), j_selesai.strftime("%H:%M"), keperluan, fullname_clean]], columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
+                    new_row.to_csv(CLOUD_DB, mode='a', header=False, index=False)
+                    st.success(" Berhasil dipesan dan tersimpan permanen di cloud server!")
+                    st.rerun()
+
+    st.markdown("---")
+    
+    # ==============================================================================
+    # 5. TAMPILAN KALENDER BULANAN KERJA INTERAKTIF (ANTI CRASH / AMAN)
+    # ==============================================================================
+    st.subheader(" Kalender Pemakaian Ruang Training (Senin - Jumat)")
+    if "m" not in st.session_state: st.session_state.m = datetime.today().month
+    if "y" not in st.session_state: st.session_state.y = datetime.today().year
+    
+    nav1, nav2, nav3 = st.columns(3)
+    if nav1.button(" Bulan Lalu"):
+        st.session_state.m = 12 if st.session_state.m == 1 else st.session_state.m - 1
+        if st.session_state.m == 12: st.session_state.y -= 1
+        st.rerun()
+    if nav3.button("Bulan Depan "):
+        st.session_state.m = 1 if st.session_state.m == 12 else st.session_state.m + 1
+        if st.session_state.m == 1: st.session_state.y += 1
+        st.rerun()
+        
+    nav2.markdown(f"<h3 style='text-align: center;'> 📅 {calendar.month_name[st.session_state.m]} {st.session_state.y}</h3>", unsafe_allow_html=True)
+    
+    html_cal = '<table style="width:100%; border-collapse: collapse; background-color: white; border: 2px solid #555;"><tr style="background-color: #e0e0e0; text-align: center; font-weight: bold;"><th style="padding: 10px; border: 2px solid #555;">Senin</th><th style="padding: 10px; border: 2px solid #555;">Selasa</th><th style="padding: 10px; border: 2px solid #555;">Rabu</th><th style="padding: 10px; border: 2px solid #555;">Kamis</th><th style="padding: 10px; border: 2px solid #555;">Jum\'at</th></tr>'
+    
+    df_cal = load_cloud_data()
+    
+    for week in calendar.Calendar(firstweekday=0).monthdayscalendar(st.session_state.y, st.session_state.m):
+        if any(d != 0 for d in week[:5]):
+            html_cal += "<tr style='height: 110px; vertical-align: top;'>"
+            for d in week[:5]:
+                if d == 0:
+                    html_cal += "<td style='border: 2px solid #555; background-color: #f7f7f7;'></td>"
+                else:
+                    tgl_cek = f"{st.session_state.y}-{st.session_state.m:02d}-{d:02d}"
+                    df_hari = df_cal[df_cal["Tanggal"] == tgl_cek]
