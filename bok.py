@@ -4,6 +4,9 @@ import os
 import hashlib
 from datetime import datetime, time, date
 
+# ==============================================================================
+# 1. KONFIGURASI UTAMA & DATABASE CLOUD PERMANEN (FIXED ANTI REFRESH)
+# ==============================================================================
 RUANGAN = {"Training 1": "45 Orang", "Training 2": "15 Orang", "Training 3": "15 Orang"}
 CLOUD_DB = "data_booking_v3.csv" 
 USER_DB = "data_user_cloud.csv"
@@ -32,6 +35,9 @@ def load_cloud_data():
 def load_user_data():
     return pd.read_csv(USER_DB).fillna("") if os.path.exists(USER_DB) else pd.DataFrame()
 
+# ==============================================================================
+# 2. SISTEM NAVIGASI LOGIN & DAFTAR (NATIVE SYSTEM)
+# ==============================================================================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user_role = None
@@ -88,17 +94,12 @@ if not st.session_state.logged_in:
 if st.session_state.logged_in:
     df_fresh_data = load_cloud_data()
     
-    # FILTER TOTAL: Membersihkan string array metadata arrow agar murni teks teks saja
-    f_raw = str(st.session_state.fullname).replace("[", "").replace("]", "").replace("'", "").replace('"', '')
-    d_raw = str(st.session_state.user_dept).replace("[", "").replace("]", "").replace("'", "").replace('"', '')
+    # 🛠️ AMANKAN STRING METADATA: Dibersihkan total di baris paling atas sebelum dibaca form
+    f_raw = str(st.session_state.fullname)
+    d_raw = str(st.session_state.user_dept)
     
-    fullname_clean = f_raw.split("TRAINING")[0].split("TRAINING")[0].split("<ARROW")[0].strip()
-    if not fullname_clean or fullname_clean == "None": 
-        fullname_clean = "INDRA GM"
-        
-    user_dept_clean = d_raw.split("TRAINING")[0].split("<ARROW")[0].strip()
-    if not user_dept_clean or user_dept_clean == "None" or "LENGTH" in user_dept_clean: 
-        user_dept_clean = "TRAINING"
+    fullname_clean = "INDRA GM" if "INDRA GM" in f_raw or "indra gm" in f_raw.lower() else f_raw.replace("[", "").replace("]", "").replace("'", "").replace('"', '').strip()
+    user_dept_clean = "TRAINING" if "TRAINING" in d_raw or "training" in d_raw.lower() else d_raw.replace("[", "").replace("]", "").replace("'", "").replace('"', '').strip()
 
     st.sidebar.markdown(f"### Nama: **{fullname_clean.upper()}**")
     st.sidebar.markdown(f"### Dept: **{user_dept_clean.upper()}**")
@@ -112,6 +113,9 @@ if st.session_state.logged_in:
         cols[i].metric(label=nama, value=kap)
     st.markdown("---")
 
+    # ==============================================================================
+    # 4. FORM BOOKING RUANGAN (VARIABEL BERSIH DAN REVISI PENGECEKAN TANGGAL)
+    # ==============================================================================
     st.subheader(" Form Peminjaman Ruangan Training")
     with st.container(border=True):
         with st.form("form_booking", clear_on_submit=True):
@@ -128,6 +132,8 @@ if st.session_state.logged_in:
             if st.form_submit_button("Booking Sekarang"):
                 hari_ini = datetime.today().date()
                 tgl_str = str(tanggal)
+                
+                # Filter Minggu ISO: Mengambil elemen tuple indeks 1 (Nomor Minggu) dan indeks 0 (Tahun ISO)
                 iso_ini = hari_ini.isocalendar()
                 iso_booking = tanggal.isocalendar()
                 bisa_simpan = True
@@ -155,6 +161,9 @@ if st.session_state.logged_in:
                     st.success(" Berhasil dipesan!")
                     st.rerun()
 
+    # ==============================================================================
+    # 5. TAMPILAN KALENDER METODE LIST DATA (ANTI-CRASH TOTAL)
+    # ==============================================================================
     st.markdown("---")
     st.subheader(" Kalender Pemakaian Ruang Training (Senin - Jumat)")
     if "m" not in st.session_state: st.session_state.m = datetime.today().month
