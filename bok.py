@@ -233,8 +233,21 @@ if st.session_state.logged_in:
                     st.error("❌ Isi keperluan atau nama training!")
                 elif j_mulai >= j_selesai:
                     st.error("❌ Jam Selesai salah! Harus lebih besar dari Jam Mulai.")
-                elif tanggal.month != hari_ini.month or tanggal.year != hari_ini.year:
-                    st.error(f"❌ Gagal! Anda hanya diperbolehkan melakukan booking untuk bulan aktif berjalan saat ini ({calendar.month_name[hari_ini.month]} {hari_ini.year}).")
+                # Mendapatkan nomor minggu dan tahun untuk hari ini serta tanggal booking
+minggu_ini = hari_ini.isocalendar()[1]
+tahun_ini = hari_ini.isocalendar()[0]
+
+minggu_booking = tanggal.isocalendar()[1]
+tahun_booking = tanggal.isocalendar()[0]
+
+# Validasi utama bulan berjalan
+if tanggal.month != hari_ini.month or tanggal.year != hari_ini.year:
+    # PENGECUALIAN: Jika masih dalam minggu berjalan yang sama, izinkan (lolos validasi)
+    if minggu_booking == minggu_ini and tahun_booking == tahun_ini:
+        pass # Lolos ke tahap pengecekan bentrok jadwal
+    else:
+        st.error(f" Gagal! Anda hanya diperbolehkan melakukan booking ❌ untuk bulan aktif berjalan saat ini ({calendar.month_name[hari_ini.month]} {hari_ini.year}) atau dalam minggu berjalan yang sama.")
+
                 else:
                     df_current_db = load_cloud_data()
                     df_dept_hari = df_current_db[(df_current_db["Departemen"].astype(str).str.upper() == user_dept_clean.upper()) & (df_current_db["Tanggal"] == tgl_str)]
