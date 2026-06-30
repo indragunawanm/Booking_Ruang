@@ -215,26 +215,22 @@ if st.session_state.logged_in:
                 hari_ini = datetime.today().date()
                 tgl_str = str(tanggal)
                 
-                # Mendapatkan data minggu ISO (Tahun, Nomor Minggu, Hari)
-                minggu_ini = hari_ini.isocalendar()[1]
-                minggu_booking = tanggal.isocalendar()[1]
+                # Mendapatkan data minggu ISO
+                minggu_ini = hari_ini.isocalendar()
+                minggu_booking = tanggal.isocalendar()
                 
-                # Validasi 1: Input Teks Kosong
                 if not keperluan.strip():
                     st.error(" Isi keperluan atau nama training!")
                     st.stop()
                     
-                # Validasi 2: Urutan Jam Salah
                 if j_mulai >= j_selesai:
                     st.error(" Jam Selesai salah! Harus lebih besar dari Jam Mulai.")
                     st.stop()
                     
-                # Validasi 3: Batasan Bulan Berjalan & Pengecualian Minggu Berjalan
                 if (tanggal.month != hari_ini.month or tanggal.year != hari_ini.year) and (minggu_booking != minggu_ini):
                     st.error(f" Gagal! Anda hanya diperbolehkan melakukan booking untuk bulan aktif berjalan saat ini ({calendar.month_name[hari_ini.month]} {hari_ini.year}) atau dalam minggu berjalan yang sama.")
                     st.stop()
                     
-                # PROSES PENGIRIMAN DATA (STRUKTUR RATA TANPA ELSE BERMASALAH)
                 df_current_db = load_cloud_data()
                 df_dept_hari = df_current_db[(df_current_db["Departemen"].astype(str).str.upper() == user_dept_clean.upper()) & (df_current_db["Tanggal"] == tgl_str)]
                 
@@ -254,7 +250,6 @@ if st.session_state.logged_in:
                     st.error(" Gagal! Ruangan sudah dipesan pada jam tersebut oleh departemen lain.")
                     st.stop()
                     
-                # SIMPAN KE DATABASE JIKA SELESAI VALIDASI
                 new_row = pd.DataFrame([[user_dept_clean.upper(), r_pilih, tgl_str, j_mulai.strftime("%H:%M"), j_selesai.strftime("%H:%M"), keperluan, fullname_clean]], columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
                 new_row.to_csv(CLOUD_DB, mode='a', header=False, index=False)
                 st.session_state['df_booking_live'] = load_cloud_data()
@@ -296,3 +291,7 @@ if st.session_state.logged_in:
                     bg = "#fff3e0" if len(df_hari) > 0 else "#ffffff"
                     info = ""
                     for _, r in df_hari.iterrows():
+                        info += f"<div style='font-size: 11px; margin-top: 4px; background-color: #ffe0b2; color: #e65100; padding: 3px; border-radius:3px; border: 1px solid #ffcc80;'>• <b>{r['Jam Mulai']}</b> [{r['Ruangan']}] {str(r['Departemen']).upper()} ({r['Nama Pemesan']})</div>"
+                    html_cal += f'<td style="border: 2px solid #555; background-color: {bg}; padding: 6px; color:#000000;"><b>{d}</b>{info}</td>'
+            html_cal += "</tr>"
+                
