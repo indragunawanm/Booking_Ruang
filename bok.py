@@ -38,7 +38,6 @@ st.markdown(
 def hash_password(password_teks):
     return hashlib.sha256(str(password_teks).encode()).hexdigest()
 
-# Membuat ulang file database kosong jika hilang
 if not os.path.exists(CLOUD_DB):
     pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"]).to_csv(CLOUD_DB, index=False)
 
@@ -51,13 +50,11 @@ def load_cloud_data():
         if not os.path.exists(CLOUD_DB):
             return pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
         df = pd.read_csv(CLOUD_DB)
-        # Proteksi mutlak jika isi struktur CSV rusak/bergeser
         for col in ["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"]:
             if col not in df.columns:
                 df[col] = ""
         return df.fillna("")
     except:
-        # Jika file CSV rusak parah tidak bisa dibaca pandas, buat file baru bersih
         df_new = pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
         df_new.to_csv(CLOUD_DB, index=False)
         return df_new
@@ -67,11 +64,6 @@ def load_user_data():
         password_admin_terenkripsi = hash_password("adminbooking")
         return pd.DataFrame([["ADMIN", password_admin_terenkripsi, "Admin Utama", "MANAGEMENT"]], columns=["Username", "Password", "Nama Lengkap", "Departemen"])
     return pd.read_csv(USER_DB).fillna("")
-
-if 'df_booking_live' not in st.session_state:
-    st.session_state['df_booking_live'] = load_cloud_data()
-
-df_jadwal = st.session_state['df_booking_live']
 
 # ==============================================================================
 # 2. SISTEM NAVIGASI LOGIN & DAFTAR (NATIVE SYSTEM)
@@ -142,16 +134,18 @@ if not st.session_state.logged_in:
         if st.button(" Sudah Punya Akun? Kembali ke Halaman Login"):
             st.session_state.page_control = "login"
             st.rerun()
+
 # ==============================================================================
 # HALAMAN UTAMA (SETELAH BERHASIL LOGIN)
 # ==============================================================================
 if st.session_state.logged_in:
+    df_live = load_cloud_data()
+    
     st.sidebar.markdown(f"### Nama: **{st.session_state.fullname.upper()}**")
     st.sidebar.markdown(f"### NIK: **{st.session_state.username}**")
     st.sidebar.markdown(f"### Dept: **{st.session_state.user_dept.upper()}**")
     
     if st.sidebar.button(" Segarkan Kalender (Refresh)"):
-        st.session_state['df_booking_live'] = load_cloud_data()
         st.rerun()
         
     if st.sidebar.button(" Keluar (Logout)"):
@@ -176,9 +170,9 @@ if st.session_state.logged_in:
         st.subheader(" Panel Admin: Edit & Pembatalan Jadwal Booking")
         st.write(" *Ubah detail data langsung pada tabel di bawah untuk mengedit, lalu klik tombol **Simpan Perubahan Jadwal Admin**.*")
         
-        if not df_jadwal.empty:
+        if not df_live.empty:
             df_admin_edit = st.data_editor(
-                df_jadwal,
+                df_live,
                 hide_index=False,
                 num_rows="dynamic",
                 column_config={
@@ -195,7 +189,6 @@ if st.session_state.logged_in:
             
             if st.button(" Simpan Perubahan Jadwal Admin", use_container_width=True, type="primary"):
                 df_admin_edit.to_csv(CLOUD_DB, index=False)
-                st.session_state['df_booking_live'] = load_cloud_data()
                 st.success(" Seluruh perubahan data booking berhasil diperbarui dan disimpan!")
                 st.rerun()
         else:
@@ -206,105 +199,3 @@ if st.session_state.logged_in:
     # 4. FORM BOOKING RUANGAN (DENGAN FIX LOGIKA DAN ANTI HILANG KALENDER)
     # ==============================================================================
     fullname_clean = str(st.session_state.fullname).replace("[", "").replace("]", "").replace("'", "").replace('"', '')
-    user_dept_clean = str(st.session_state.user_dept).replace("[", "").replace("]", "").replace("'", "").replace('"', '')
-    
-    st.markdown(f"### Welcome, {fullname_clean.upper()}!")
-    st.subheader(" Form Peminjaman Ruangan Training")
-    
-    with st.container(border=True):
-        with st.form("form_booking", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                st.info(f" Departemen Pengunci: **{user_dept_clean.upper()}**")
-                r_pilih = st.selectbox("Pilih Ruangan", list(RUANGAN.keys()))
-                tanggal = st.date_input("Tanggal Pinjam", min_value=datetime.today().date())
-            with col2:
-                j_mulai = st.time_input("Jam Mulai", value=time(8, 0))
-                j_selesai = st.time_input("Jam Selesai", value=time(9, 0))
-                keperluan = st.text_area("Keperluan / Nama Training")
-                
-            if st.form_submit_button("Booking Sekarang"):
-                hari_ini = datetime.today().date()
-                tgl_str = str(tanggal)
-                
-                # Mengambil NOMOR MINGGU dan TAHUN ISO
-                tahun_iso_ini = hari_ini.isocalendar()[0]
-                nomor_minggu_ini = hari_ini.isocalendar()[1]
-                
-                tahun_iso_booking = tanggal.isocalendar()[0]
-                nomor_minggu_booking = tanggal.isocalendar()[1]
-                
-                bisa_simpan = True
-                
-                # Validasi 1: Input Teks Kosong
-                if not keperluan.strip():
-                    st.error(" Isi keperluan atau nama training!")
-                    bisa_simpan = False
-                    
-                # Validasi 2: Urutan Jam Salah
-                if bisa_simpan and j_mulai >= j_selesai:
-                    st.error(" Jam Selesai salah! Harus lebih besar dari Jam Mulai.")
-                    bisa_simpan = False
-                    
-                # Validasi 3: Aturan Batasan Bulan Berjalan & Pengecualian Minggu Berjalan
-                if bisa_simpan and (tanggal.month != hari_ini.month or tanggal.year != hari_ini.year):
-                    if (nomor_minggu_booking != nomor_minggu_ini) or (tahun_iso_booking != tahun_iso_ini):
-                        st.error(f" Gagal! Anda hanya diperbolehkan melakukan booking untuk bulan aktif berjalan saat ini ({calendar.month_name[hari_ini.month]} {hari_ini.year}) atau dalam minggu berjalan yang sama.")
-                        bisa_simpan = False
-                        
-                # VALIDASI DATABASE
-                if bisa_simpan:
-                    df_current_db = load_cloud_data()
-                    
-                    # Pengecekan Kunci Departemen Harian
-                    df_dept_hari = df_current_db[(df_current_db["Departemen"].astype(str).str.upper() == user_dept_clean.upper()) & (df_current_db["Tanggal"] == tgl_str)]
-                    if not df_dept_hari.empty:
-                        # Dipanggil menggunakan struktur nilai array (.values[0]) yang anti hancur di Pandas
-                        nama_pengunci_pertama = df_dept_hari["Nama Pemesan"].values[0]
-                        st.error(f" Gagal! Departemen {user_dept_clean.upper()} sudah melakukan booking di tanggal ini. Silakan hubungi Rekan Anda: **{str(nama_pengunci_pertama).upper()}** yang sudah booking duluan!")
-                        bisa_simpan = False
-                        
-                    # Pengecekan Jam Bentrok Ruangan
-                    if bisa_simpan:
-                        df_hari = df_current_db[(df_current_db["Ruangan"] == r_pilih) & (df_current_db["Tanggal"] == tgl_str)]
-                        bentrok = False
-                        for _, row in df_hari.iterrows():
-                            jam_mulai_db = str(row["Jam Mulai"]).strip()
-                            jam_selesai_db = str(row["Jam Selesai"]).strip()
-                            if jam_mulai_db and jam_selesai_db:
-                                if not (j_selesai.strftime("%H:%M") <= jam_mulai_db or j_mulai.strftime("%H:%M") >= jam_selesai_db):
-                                    bentrok = True
-                                    break
-                        if bentrok:
-                            st.error(" Gagal! Ruangan sudah dipesan pada jam tersebut oleh departemen lain.")
-                            bisa_simpan = False
-                            
-                # PROSES SIMPAN KE DATABASE
-                if bisa_simpan:
-                    new_row = pd.DataFrame([[user_dept_clean.upper(), r_pilih, tgl_str, j_mulai.strftime("%H:%M"), j_selesai.strftime("%H:%M"), keperluan, fullname_clean]], columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
-                    new_row.to_csv(CLOUD_DB, mode='a', header=False, index=False)
-                    st.session_state['df_booking_live'] = load_cloud_data()
-                    st.success(" Berhasil dipesan dan tersimpan permanen di cloud server!")
-                    st.rerun()
-
-    st.markdown("---")
-    
-    # ==============================================================================
-    # 5. TAMPILAN KALENDER BULANAN KERJA INTERAKTIF (PROTEKSI KORUPSI DATA)
-    # ==============================================================================
-    st.subheader(" Kalender Pemakaian Ruang Training (Senin - Jumat)")
-    if "m" not in st.session_state: st.session_state.m = datetime.today().month
-    if "y" not in st.session_state: st.session_state.y = datetime.today().year
-    
-    nav1, nav2, nav3 = st.columns(3)
-    if nav1.button(" Bulan Lalu"):
-        st.session_state.m = 12 if st.session_state.m == 1 else st.session_state.m - 1
-        if st.session_state.m == 12: st.session_state.y -= 1
-        st.rerun()
-    if nav3.button("Bulan Depan "):
-        st.session_state.m = 1 if st.session_state.m == 12 else st.session_state.m + 1
-        if st.session_state.m == 1: st.session_state.y += 1
-        st.rerun()
-        
-    nav2.markdown(f"<h3 style='text-align: center;'> 📅 {calendar.month_name[st.session_state.m]} {st.session_state.y}</h3>", unsafe_allow_html=True)
-    
