@@ -30,7 +30,10 @@ def load_cloud_data():
         return pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
 
 def load_user_data():
-    return pd.read_csv(USER_DB).fillna("") if os.path.exists(USER_DB) else pd.DataFrame()
+    if not os.path.exists(USER_DB):
+        password_admin_terenkripsi = hash_password("adminbooking")
+        return pd.DataFrame([["ADMIN", password_admin_terenkripsi, "Admin Utama", "MANAGEMENT"]], columns=["Username", "Password", "Nama Lengkap", "Departemen"])
+    return pd.read_csv(USER_DB).fillna("").astype(str)
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
