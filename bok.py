@@ -13,6 +13,31 @@ USER_DB = "data_user_cloud.csv"
 
 st.set_page_config(page_title="Booking Ruangan Cloud", layout="wide")
 
+# DI SINI KODE PEMBERSIHNYA: Menyembunyikan total logo Kucing GitHub, Share, & Garis Tiga
+st.markdown(
+    """
+    <style>
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    .viewerBadge_container__1QS1h {display: none !important;}
+    [data-testid="stHeader"] {display: none !important; visibility: hidden; height: 0rem;}
+    [data-testid="stToolbar"] {display: none !important; visibility: hidden;}
+    
+    html, body {
+        overscroll-behavior-y: contain !important;
+        overscroll-behavior-x: none !important;
+    }
+    [data-testid="stAppViewContainer"] {
+        overscroll-behavior-y: contain !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 def hash_password(password_teks):
     return hashlib.sha256(str(password_teks).encode()).hexdigest()
 
@@ -34,6 +59,61 @@ def load_cloud_data():
 
 def load_user_data():
     return pd.read_csv(USER_DB).fillna("") if os.path.exists(USER_DB) else pd.DataFrame()
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+    st.session_state.user_role = None
+    st.session_state.username = ""
+    st.session_state.fullname = ""
+    st.session_state.user_dept = ""
+
+if "page_control" not in st.session_state:
+    st.session_state.page_control = "login"
+
+if not st.session_state.logged_in:
+    if st.session_state.page_control == "login":
+        st.subheader("Silakan Masuk Menggunakan NIK dan Password Anda")
+        with st.form("form_login"):
+            u = st.text_input("Masukkan NIK Anda").strip()
+            p = st.text_input("Masukkan Password", type="password").strip()
+            if st.form_submit_button("Masuk Aplikasi"):
+                df_user = load_user_data()
+                p_hashed = hash_password(p)
+                user_match = df_user[(df_user["Username"].astype(str).str.upper() == u.upper()) & (df_user["Password"].astype(str) == p_hashed)]
+                if not user_match.empty:
+                    st.session_state.logged_in = True
+                    st.session_state.username = u.upper()
+                    st.session_state.fullname = str(user_match["Nama Lengkap"].values)
+                    st.session_state.user_dept = str(user_match["Departemen"].values)
+                    st.session_state.user_role = "admin" if u.upper() == "ADMIN" else "user"
+                    st.rerun()
+                else:
+                    st.error(" NIK atau Password salah!")
+        if st.button("Daftar Akun Baru"):
+            st.session_state.page_control = "daftar"
+            st.rerun()
+            
+    elif st.session_state.page_control == "daftar":
+        st.subheader("Form Pendaftaran Akun Karyawan Baru")
+        with st.form("form_daftar", clear_on_submit=True):
+            reg_dept = st.text_input("Departemen / Section (Misal: PPC, QA)").strip()
+            reg_name = st.text_input("Nama Lengkap Karyawan").strip()
+            reg_nik = st.text_input("Nomor NIK Karyawan").strip()
+            reg_p = st.text_input("Buat Password Baru", type="password").strip()
+            confirm_p = st.text_input("Ulangi Password", type="password").strip()
+            if st.form_submit_button("Daftar Sekarang"):
+                df_user = load_user_data()
+                if not reg_dept or not reg_name or not reg_nik or not reg_p:
+                    st.error(" Seluruh kolom wajib diisi!")
+                elif reg_p != confirm_p:
+                    st.error(" Konfirmasi password tidak cocok.")
+                else:
+                    new_user_row = pd.DataFrame([[reg_nik.upper(), hash_password(reg_p), reg_name, reg_dept.upper()]], columns=["Username", "Password", "Nama Lengkap", "Departemen"])
+                    new_user_row.to_csv(USER_DB, mode='a', header=False, index=False)
+                    st.success(" Registrasi Sukses!")
+                    st.session_state.page_control = "login"
+                    st.rerun()
+
 
 # ==============================================================================
 # 2. SISTEM NAVIGASI LOGIN & DAFTAR (NATIVE SYSTEM)
