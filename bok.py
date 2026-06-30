@@ -211,7 +211,7 @@ if st.session_state.logged_in:
                 j_selesai = st.time_input("Jam Selesai", value=time(9, 0))
                 keperluan = st.text_area("Keperluan / Nama Training")
                 
-                        if st.form_submit_button("Booking Sekarang"):
+            if st.form_submit_button("Booking Sekarang"):
                 hari_ini = datetime.today().date()
                 tgl_str = str(tanggal)
                 
