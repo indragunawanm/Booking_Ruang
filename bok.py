@@ -211,30 +211,37 @@ if st.session_state.logged_in:
                 j_selesai = st.time_input("Jam Selesai", value=time(9, 0))
                 keperluan = st.text_area("Keperluan / Nama Training")
                 
-            if st.form_submit_button("Booking Sekarang"):
+                        if st.form_submit_button("Booking Sekarang"):
                 hari_ini = datetime.today().date()
                 tgl_str = str(tanggal)
                 
-                # Mendapatkan data minggu ISO
-                minggu_ini = hari_ini.isocalendar()
-                minggu_booking = tanggal.isocalendar()
+                # Mengambil NOMOR MINGGU saja (indeks ke-1 dari isocalendar)
+                nomor_minggu_ini = hari_ini.isocalendar()[1]
+                nomor_minggu_booking = tanggal.isocalendar()[1]
                 
+                # Validasi 1: Input Teks Kosong
                 if not keperluan.strip():
                     st.error(" Isi keperluan atau nama training!")
                     st.stop()
                     
+                # Validasi 2: Urutan Jam Salah
                 if j_mulai >= j_selesai:
                     st.error(" Jam Selesai salah! Harus lebih besar dari Jam Mulai.")
                     st.stop()
                     
-                if (tanggal.month != hari_ini.month or tanggal.year != hari_ini.year) and (minggu_booking != minggu_ini):
-                    st.error(f" Gagal! Anda hanya diperbolehkan melakukan booking untuk bulan aktif berjalan saat ini ({calendar.month_name[hari_ini.month]} {hari_ini.year}) atau dalam minggu berjalan yang sama.")
-                    st.stop()
+                # Validasi 3: Aturan Batasan Bulan & Pengecualian Minggu Berjalan (LOGIKA DIPERBAIKI)
+                # Jika pemesanan bukan di bulan ini DAN bukan di nomor minggu yang sama, maka BLOKIR.
+                if (tanggal.month != hari_ini.month or tanggal.year != hari_ini.year):
+                    if nomor_minggu_booking != nomor_minggu_ini:
+                        st.error(f" Gagal! Anda hanya diperbolehkan melakukan booking untuk bulan aktif berjalan saat ini ({calendar.month_name[hari_ini.month]} {hari_ini.year}) atau dalam minggu berjalan yang sama.")
+                        st.stop()
                     
+                # PROSES PENGIRIMAN DATA (STRUKTUR DATAR SEJAJAR, AMAN DARI ERROR)
                 df_current_db = load_cloud_data()
                 df_dept_hari = df_current_db[(df_current_db["Departemen"].astype(str).str.upper() == user_dept_clean.upper()) & (df_current_db["Tanggal"] == tgl_str)]
                 
                 if not df_dept_hari.empty:
+                    # Menggunakan .iloc[0] untuk mengambil data baris pertama agar tidak crash
                     nama_pengunci_pertama = df_dept_hari.iloc[0]["Nama Pemesan"]
                     st.error(f" Gagal! Departemen {user_dept_clean.upper()} sudah melakukan booking di tanggal ini. Silakan hubungi Rekan Anda: **{str(nama_pengunci_pertama).upper()}** yang sudah booking duluan!")
                     st.stop()
@@ -255,6 +262,7 @@ if st.session_state.logged_in:
                 st.session_state['df_booking_live'] = load_cloud_data()
                 st.success(" Berhasil dipesan dan tersimpan permanen di cloud server!")
                 st.rerun()
+
 
     st.markdown("---")
     
