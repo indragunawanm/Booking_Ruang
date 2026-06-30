@@ -50,10 +50,12 @@ def load_cloud_data():
         if not os.path.exists(CLOUD_DB):
             return pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
         df = pd.read_csv(CLOUD_DB)
-        for col in ["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"]:
+        # Proteksi Restrukturisasi Kolom yang Hancur
+        kolom_wajib = ["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"]
+        for col in kolom_wajib:
             if col not in df.columns:
                 df[col] = ""
-        return df.fillna("")
+        return df[kolom_wajib].fillna("").astype(str)
     except:
         df_new = pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
         df_new.to_csv(CLOUD_DB, index=False)
@@ -219,7 +221,7 @@ if st.session_state.logged_in:
                 hari_ini = datetime.today().date()
                 tgl_str = str(tanggal)
                 
-                # Mengambil Tahun ISO dan Nomor Minggu ISO secara tepat (Format Tuple)
+                # Mengambil Tahun ISO (indeks 0) dan Nomor Minggu ISO (indeks 1)
                 iso_ini = hari_ini.isocalendar()
                 iso_booking = tanggal.isocalendar()
                 
@@ -235,7 +237,6 @@ if st.session_state.logged_in:
                     
                 # Aturan Bulan Berjalan dengan Pengecualian Minggu Berjalan
                 if bisa_simpan and (tanggal.month != hari_ini.month or tanggal.year != hari_ini.year):
-                    # iso[0] = Tahun ISO, iso[1] = Nomor Minggu ISO
                     if (iso_booking[0] != iso_ini[0]) or (iso_booking[1] != iso_ini[1]):
                         st.error(f" Gagal! Anda hanya diperbolehkan melakukan booking untuk bulan aktif berjalan saat ini ({calendar.month_name[hari_ini.month]} {hari_ini.year}) atau dalam minggu berjalan yang sama.")
                         bisa_simpan = False
@@ -244,7 +245,7 @@ if st.session_state.logged_in:
                     df_db = load_cloud_data()
                     df_dept_hari = df_db[(df_db["Departemen"].astype(str).str.upper() == user_dept_clean.upper()) & (df_db["Tanggal"] == tgl_str)]
                     if not df_dept_hari.empty:
-                        nama_pengunci = df_dept_hari["Nama Pemesan"].values
+                        nama_pengunci = df_dept_hari["Nama Pemesan"].values[0]
                         st.error(f" Gagal! Departemen {user_dept_clean.upper()} sudah melakukan booking di tanggal ini. Silakan hubungi Rekan Anda: **{str(nama_pengunci).upper()}** yang sudah booking duluan!")
                         bisa_simpan = False
                         
@@ -271,7 +272,7 @@ if st.session_state.logged_in:
     st.markdown("---")
     
     # ==============================================================================
-    # 5. TAMPILAN KALENDER BULANAN KERJA INTERAKTIF (PROTEKSI PENUH ANTI-CRASH)
+    # 5. TAMPILAN KALENDER BULANAN MURNI DICTIONARY (ANTI CRASH TOTAL)
     # ==============================================================================
     st.subheader(" Kalender Pemakaian Ruang Training (Senin - Jumat)")
     if "m" not in st.session_state: st.session_state.m = datetime.today().month
@@ -291,7 +292,8 @@ if st.session_state.logged_in:
     
     html_cal = '<table style="width:100%; border-collapse: collapse; background-color: white; border: 2px solid #555;"><tr style="background-color: #e0e0e0; text-align: center; font-weight: bold;"><th style="padding: 10px; border: 2px solid #555;">Senin</th><th style="padding: 10px; border: 2px solid #555;">Selasa</th><th style="padding: 10px; border: 2px solid #555;">Rabu</th><th style="padding: 10px; border: 2px solid #555;">Kamis</th><th style="padding: 10px; border: 2px solid #555;">Jum\'at</th></tr>'
     
-    df_cal = load_cloud_data()
+    # Mengubah format data pandas menjadi Dict Record murni agar imun dari crash iterrows
+    raw_records = load_cloud_data().to_dict(orient="records")
     
     for week in calendar.Calendar(firstweekday=0).monthdayscalendar(st.session_state.y, st.session_state.m):
         if any(d != 0 for d in week[:5]):
@@ -301,5 +303,4 @@ if st.session_state.logged_in:
                     html_cal += "<td style='border: 2px solid #555; background-color: #f7f7f7;'></td>"
                 else:
                     tgl_cek = f"{st.session_state.y}-{st.session_state.m:02d}-{d:02d}"
-                    df_hari = df_cal[df_cal["Tanggal"] == tgl_cek]
-
+                    
