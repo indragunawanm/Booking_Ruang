@@ -1,311 +1,239 @@
 import streamlit as st
 import pandas as pd
-import os
 import hashlib
 from datetime import datetime, time, date
+from streamlit_gsheets import GSheetsConnection
 
 # ==============================================================================
-# 1. KONFIGURASI UTAMA & DATABASE CLOUD PERMANEN (FIXED ANTI REFRESH)
+# 1. KONFIGURASI UTAMA & SISTEM DATABASE GOOGLE SHEETS
 # ==============================================================================
 RUANGAN = {"Training 1": "45 Orang", "Training 2": "15 Orang", "Training 3": "15 Orang"}
-CLOUD_DB = "data_booking_v3.csv" 
-USER_DB = "data_user_cloud.csv"
 
 st.set_page_config(page_title="Booking Ruangan Cloud", layout="wide")
 
-# DI SINI KODE PEMBERSIHNYA: Menyembunyikan total logo Kucing GitHub, Share, & Garis Tiga
-st.markdown(
-    """
-    <style>
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    .viewerBadge_container__1QS1h {display: none !important;}
-    [data-testid="stHeader"] {display: none !important; visibility: hidden; height: 0rem;}
-    [data-testid="stToolbar"] {display: none !important; visibility: hidden;}
-    
-    html, body {
-        overscroll-behavior-y: contain !important;
-        overscroll-behavior-x: none !important;
-    }
-    [data-testid="stAppViewContainer"] {
-        overscroll-behavior-y: contain !important;
-        overflow-y: auto !important;
-        -webkit-overflow-scrolling: touch !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+# Menginisialisasi koneksi aman ke Google Sheets via API Cloud
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 def hash_password(password_teks):
+    """Mengubah password teks biasa menjadi kode enkripsi SHA-256 aman"""
     return hashlib.sha256(str(password_teks).encode()).hexdigest()
 
-if not os.path.exists(CLOUD_DB):
-    pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"]).to_csv(CLOUD_DB, index=False)
-
-if not os.path.exists(USER_DB):
-    password_admin_terenkripsi = hash_password("adminbooking")
-    pd.DataFrame([["ADMIN", password_admin_terenkripsi, "Admin Utama", "MANAGEMENT"]], columns=["Username", "Password", "Nama Lengkap", "Departemen"]).to_csv(USER_DB, index=False)
-
 def load_cloud_data():
+    """Membaca daftar booking ruangan dari Google Sheets secara real-time"""
     try:
-        if not os.path.exists(CLOUD_DB):
-            return pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
-        df = pd.read_csv(CLOUD_DB)
+        df = conn.read(worksheet="data_booking_v3", ttl=0)
         return df.fillna("").astype(str)
     except:
         return pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
 
 def load_user_data():
-    return pd.read_csv(USER_DB).fillna("") if os.path.exists(USER_DB) else pd.DataFrame()
+    """Membaca data akun pengguna dari Google Sheets secara real-time"""
+    try:
+        df = conn.read(worksheet="data_user_cloud", ttl=0)
+        return df.fillna("").astype(str)
+    except:
+        return pd.DataFrame(columns=["Username", "Password", "Nama Lengkap", "Departemen"])
 
+# Initialize state management aplikasi agar anti-looping
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-    st.session_state.user_role = None
-    st.session_state.username = ""
-    st.session_state.fullname = ""
-    st.session_state.user_dept = ""
-
 if "page_control" not in st.session_state:
     st.session_state.page_control = "login"
 
+# ==============================================================================
+# 2. ALUR ANTARMUKA PENGGUNA (INTERFACE CONTROL)
+# ==============================================================================
 if not st.session_state.logged_in:
+    # --------------------------------------------------------------------------
+    # HALAMAN LOGIN UTAMA
+    # --------------------------------------------------------------------------
     if st.session_state.page_control == "login":
         st.subheader("Silakan Masuk Menggunakan NIK dan Password Anda")
-        with st.form("form_login"):
+        
+        with st.form("form_masuk_akun_utama"):
             u = st.text_input("Masukkan NIK Anda").strip()
             p = st.text_input("Masukkan Password", type="password").strip()
-            if st.form_submit_button("Masuk Aplikasi"):
-                df_user = load_user_data()
-                p_hashed = hash_password(p)
-                user_match = df_user[(df_user["Username"].astype(str).str.upper() == u.upper()) & (df_user["Password"].astype(str) == p_hashed)]
-                if not user_match.empty:
-                    st.session_state.logged_in = True
-                    st.session_state.username = u.upper()
-                    st.session_state.fullname = str(user_match["Nama Lengkap"].values)
-                    st.session_state.user_dept = str(user_match["Departemen"].values)
-                    st.session_state.user_role = "admin" if u.upper() == "ADMIN" else "user"
-                    st.rerun()
+            tombol_masuk = st.form_submit_button("Masuk Aplikasi")
+            
+            if tombol_masuk:
+                if u and p:
+                    df_user = load_user_data()
+                    p_hashed = hash_password(p)
+                    
+                    # Pencocokan data login ke Google Sheets
+                    user_match = df_user[(df_user["Username"].str.upper() == u.upper()) & (df_user["Password"] == p_hashed)]
+                    
+                    if not user_match.empty:
+                        st.session_state.logged_in = True
+                        st.session_state.username = u.upper()
+                        st.session_state.fullname = str(user_match["Nama Lengkap"].values[0])
+                        st.session_state.user_dept = str(user_match["Departemen"].values[0])
+                        st.session_state.user_role = "admin" if u.upper() == "ADMIN" else "user"
+                        st.success(f"Selamat Datang, {st.session_state.fullname}!")
+                        st.rerun()
+                    else:
+                        st.error("NIK atau Password salah! Silakan coba lagi.")
                 else:
-                    st.error(" NIK atau Password salah!")
-        if st.button("Daftar Akun Baru"):
+                    st.warning("Mohon isi seluruh kolom login terlebih dahulu.")
+        
+        st.write("---")
+        if st.button("Daftar Akun Baru", key="tombol_pindah_ke_registrasi"):
             st.session_state.page_control = "daftar"
             st.rerun()
-            
+
+    # --------------------------------------------------------------------------
+    # HALAMAN DAFTAR AKUN BARU
+    # --------------------------------------------------------------------------
     elif st.session_state.page_control == "daftar":
-        st.subheader("Form Pendaftaran Akun Karyawan Baru")
-        with st.form("form_daftar", clear_on_submit=True):
-            reg_dept = st.text_input("Departemen / Section (Misal: PPC, QA)").strip()
-            reg_name = st.text_input("Nama Lengkap Karyawan").strip()
-            reg_nik = st.text_input("Nomor NIK Karyawan").strip()
-            reg_p = st.text_input("Buat Password Baru", type="password").strip()
-            confirm_p = st.text_input("Ulangi Password", type="password").strip()
-            if st.form_submit_button("Daftar Sekarang"):
-                df_user = load_user_data()
-                if not reg_dept or not reg_name or not reg_nik or not reg_p:
-                    st.error(" Seluruh kolom wajib diisi!")
-                elif reg_p != confirm_p:
-                    st.error(" Konfirmasi password tidak cocok.")
+        st.subheader("Formulir Registrasi Pengguna Baru")
+        
+        with st.form("form_pendaftaran_user_baru"):
+            reg_nik = st.text_input("Masukkan NIK Baru").strip()
+            reg_name = st.text_input("Masukkan Nama Lengkap Anda").strip()
+            reg_dept = st.selectbox("Pilih Departemen/Section", ["LOGISTIC", "PRODUCTION", "HRD", "GA", "QUALITY", "ENGINEERING", "MANAGEMENT"])
+            reg_p = st.text_input("Buat Password Anda", type="password").strip()
+            reg_p_confirm = st.text_input("Konfirmasi Password Anda", type="password").strip()
+            
+            tombol_daftar = st.form_submit_button("Daftar Sekarang")
+            
+            if tombol_daftar:
+                if reg_nik and reg_name and reg_p and reg_p_confirm:
+                    if reg_p != reg_p_confirm:
+                        st.error("Konfirmasi password tidak cocok!")
+                    else:
+                        df_user_lama = load_user_data()
+                        if reg_nik.upper() in df_user_lama["Username"].str.upper().values:
+                            st.error("NIK tersebut sudah terdaftar di sistem!")
+                        else:
+                            # Menambahkan data user baru ke Google Sheets
+                            new_user_row = pd.DataFrame([[reg_nik.upper(), hash_password(reg_p), reg_name, reg_dept.upper()]], 
+                                                        columns=["Username", "Password", "Nama Lengkap", "Departemen"])
+                            df_user_baru = pd.concat([df_user_lama, new_user_row], ignore_index=True)
+                            conn.update(worksheet="data_user_cloud", data=df_user_baru)
+                            
+                            st.success("Registrasi Berhasil! Silakan masuk kembali.")
+                            st.session_state.page_control = "login"
+                            st.rerun()
                 else:
-                    new_user_row = pd.DataFrame([[reg_nik.upper(), hash_password(reg_p), reg_name, reg_dept.upper()]], columns=["Username", "Password", "Nama Lengkap", "Departemen"])
-                    new_user_row.to_csv(USER_DB, mode='a', header=False, index=False)
-                    st.success(" Registrasi Sukses!")
-                    st.session_state.page_control = "login"
-                    st.rerun()
-
-
-# ==============================================================================
-# 2. SISTEM NAVIGASI LOGIN & DAFTAR (NATIVE SYSTEM)
-# ==============================================================================
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-    st.session_state.user_role = None
-    st.session_state.username = ""
-    st.session_state.fullname = ""
-    st.session_state.user_dept = ""
-
-if "page_control" not in st.session_state:
-    st.session_state.page_control = "login"
-
-if not st.session_state.logged_in:
-    if st.session_state.page_control == "login":
-        st.subheader("Silakan Masuk Menggunakan NIK dan Password Anda")
-        with st.form("form_masuk_akun"):
-            u = st.text_input("Masukkan NIK Anda").strip()
-            p = st.text_input("Masukkan Password", type="password").strip()
-            if st.form_submit_button("Masuk Aplikasi"):
-                df_user = load_user_data()
-                p_hashed = hash_password(p)
-                user_match = df_user[(df_user["Username"].astype(str).str.upper() == u.upper()) & (df_user["Password"].astype(str) == p_hashed)]
-                if not user_match.empty:
-                    st.session_state.logged_in = True
-                    st.session_state.username = u.upper()
-                    st.session_state.fullname = str(user_match["Nama Lengkap"].values)
-                    st.session_state.user_dept = str(user_match["Departemen"].values)
-                    st.session_state.user_role = "admin" if u.upper() == "ADMIN" else "user"
-                    st.rerun()
+                    st.warning("Semua kolom registrasi wajib diisi!")
+        
+        st.write("---")
+        if st.button("Kembali ke Menu Login", key="tombol_kembali_ke_login"):
+            st.session_state.page_control = "login"
+            st.rerun()
+else:
+    # ==============================================================================
+    # 3. HALAMAN UTAMA APLIKASI (SETELAH BERHASIL LOGIN)
+    # ==============================================================================
+    fullname_clean = str(st.session_state.fullname).replace("['", "").replace("']", "")
+    user_dept_clean = str(st.session_state.user_dept).replace("['", "").replace("']", "")
+    
+    # Membuat 2 kolom layout utama (Kiri: Form Input, Kanan: Informasi Status)
+    k_kiri, k_kanan = st.columns([1, 2])
+    
+    with k_kiri:
+        st.markdown(f"### 👤 Logged in as: **{fullname_clean}** ({st.session_state.user_role.upper()})")
+        st.markdown(f"🏢 Dept: **{user_dept_clean}**")
+        
+        st.subheader("Formulir Pemesanan Ruangan")
+        with st.form("form_pemesanan_ruangan_cloud"):
+            r_pilih = st.selectbox("Pilih Ruangan yang Akan Digunakan", list(RUANGAN.keys()))
+            tgl_pilih = st.date_input("Pilih Tanggal Acara", min_value=date.today())
+            j_mulai = st.time_input("Jam Mulai Penggunaan", time(8, 0))
+            j_selesai = st.time_input("Jam Selesai Penggunaan", time(17, 0))
+            keperluan = st.text_area("Tuliskan Keperluan/Nama Agenda Acara").strip()
+            
+            tombol_booking = st.form_submit_button("Kirim Formulir Pemesanan")
+            
+            if tombol_booking:
+                if keperluan:
+                    if j_mulai >= j_selesai:
+                        st.error("Waktu mulai tidak boleh sama dengan atau melampaui waktu selesai!")
+                    else:
+                        tgl_str = tgl_pilih.strftime("%Y-%m-%d")
+                        df_booking = load_cloud_data()
+                        
+                        # Filter bentrokan jadwal ruangan pada tanggal yang sama
+                        df_hari_ini = df_booking[(df_booking["Ruangan"] == r_pilih) & (df_booking["Tanggal"] == tgl_str)]
+                        
+                        bisa_simpan = True
+                        for _, baris in df_hari_ini.iterrows():
+                            # Konversi string jam kembali ke format waktu Python untuk pencocokan data
+                            b_mulai = datetime.strptime(baris["Jam Mulai"], "%H:%M").time()
+                            b_selesai = datetime.strptime(baris["Jam Selesai"], "%H:%M").time()
+                            
+                            # Logika validasi tabrakan jam
+                            if not (j_selesai <= b_mulai or j_mulai >= b_selesai):
+                                bisa_simpan = False
+                                st.error(f"❌ JADWAL BENTROK! Ruangan telah dipesan oleh Dept. {baris['Departemen']} (Jam {baris['Jam Mulai']} - {baris['Jam Selesai']}) untuk keperluan: '{baris['Keperluan']}'")
+                                break
+                        
+                        if bisa_simpan:
+                            # Menambahkan baris pemesanan baru ke Google Sheets
+                            new_row = pd.DataFrame([[
+                                user_dept_clean.upper(), 
+                                r_pilih, 
+                                tgl_str, 
+                                j_mulai.strftime("%H:%M"), 
+                                j_selesai.strftime("%H:%M"), 
+                                keperluan, 
+                                fullname_clean
+                            ]], columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
+                            
+                            df_booking_baru = pd.concat([df_booking, new_row], ignore_index=True)
+                            conn.update(worksheet="data_booking_v3", data=df_booking_baru)
+                            
+                            st.success("🎉 Ruangan Berhasil Dipesan di Cloud Database!")
+                            st.rerun()
                 else:
-                    st.error(" NIK atau Password salah!")
-        if st.button("Daftar Akun Baru"):
-            st.session_state.page_control = "daftar"
+                    st.warning("Mohon tuliskan keperluan agenda acara Anda.")
+        
+        st.write("")
+        if st.button("🚪 Keluar Aplikasi (Logout)", key="tombol_logout_sistem"):
+            st.session_state.logged_in = False
+            st.session_state.page_control = "login"
+            st.rerun()
+
+    with k_kanan:
+        st.subheader("📅 Jadwal Penggunaan Ruangan Terkini")
+        
+        # Tombol manual Refresh Data untuk pengguna agar data selalu aktual
+        if st.button("🔄 Segarkan Data (Refresh)", key="tombol_refresh_tabel"):
             st.rerun()
             
-    elif st.session_state.page_control == "daftar":
-        st.subheader("Form Pendaftaran Akun Karyawan Baru")
-        with st.form("form_daftar", clear_on_submit=True):
-            reg_dept = st.text_input("Departemen / Section (Misal: PPC, QA)").strip()
-            reg_name = st.text_input("Nama Lengkap Karyawan").strip()
-            reg_nik = st.text_input("Nomor NIK Karyawan").strip()
-            reg_p = st.text_input("Buat Password Baru", type="password").strip()
-            confirm_p = st.text_input("Ulangi Password", type="password").strip()
-            if st.form_submit_button("Daftar Sekarang"):
-                df_user = load_user_data()
-                if not reg_dept or not reg_name or not reg_nik or not reg_p:
-                    st.error(" Seluruh kolom wajib diisi!")
-                elif reg_p != confirm_p:
-                    st.error(" Konfirmasi password tidak cocok.")
-                else:
-                    new_user_row = pd.DataFrame([[reg_nik.upper(), hash_password(reg_p), reg_name, reg_dept.upper()]], columns=["Username", "Password", "Nama Lengkap", "Departemen"])
-                    new_user_row.to_csv(USER_DB, mode='a', header=False, index=False)
-                    st.success(" Registrasi Sukses!")
-                    st.session_state.page_control = "login"
-                    st.rerun()
-if st.session_state.logged_in:
-    df_fresh_data = load_cloud_data()
-    
-    # AMANKAN STRING METADATA: Dibersihkan total di baris paling atas sebelum dibaca form
-    f_raw = str(st.session_state.fullname)
-    d_raw = str(st.session_state.user_dept)
-    
-    fullname_clean = "INDRA GM" if "INDRA GM" in f_raw or "indra gm" in f_raw.lower() else f_raw.replace("[", "").replace("]", "").replace("'", "").replace('"', '').strip()
-    user_dept_clean = "TRAINING" if "TRAINING" in d_raw or "training" in d_raw.lower() else d_raw.replace("[", "").replace("]", "").replace("'", "").replace('"', '').strip()
-
-    st.sidebar.markdown(f"### Nama: **{fullname_clean.upper()}**")
-    st.sidebar.markdown(f"### Dept: **{user_dept_clean.upper()}**")
-    if st.sidebar.button("Keluar (Logout)"):
-        st.session_state.logged_in = False
-        st.rerun()
-
-    st.title(" Sistem Booking Ruangan Training Cloud")
-    cols = st.columns(3)
-    for i, (nama, kap) in enumerate(RUANGAN.items()):
-        cols[i].metric(label=nama, value=kap)
-    st.markdown("---")
-
-    # ==============================================================================
-    # 4. FORM BOOKING RUANGAN (VARIABEL BERSIH DAN REVISI PENGECEKAN TANGGAL)
-    # ==============================================================================
-    st.subheader(" Form Peminjaman Ruangan Training")
-    with st.container(border=True):
-        with st.form("form_booking", clear_on_submit=True):
-            col1, col2 = st.columns(2)
-            with col1:
-                st.info(f" Departemen Pengunci: **{user_dept_clean.upper()}**")
-                r_pilih = st.selectbox("Pilih Ruangan", list(RUANGAN.keys()))
-                tanggal = st.date_input("Tanggal Pinjam", min_value=datetime.today().date())
-            with col2:
-                j_mulai = st.time_input("Jam Mulai", value=time(8, 0))
-                j_selesai = st.time_input("Jam Selesai", value=time(9, 0))
-                keperluan = st.text_area("Keperluan / Nama Training")
+        df_display = load_cloud_data()
+        
+        if df_display.empty or len(df_display) == 0:
+            st.info("Belum ada jadwal pemesanan ruangan terdaftar saat ini.")
+        else:
+            # Urutkan tabel berdasarkan Tanggal dan Jam Mulai agar rapi dibaca pengguna
+            try:
+                df_display = df_display.sort_values(by=["Tanggal", "Jam Mulai"], ascending=[True, True])
+            except:
+                pass
                 
-            if st.form_submit_button("Booking Sekarang"):
-                hari_ini = datetime.today().date()
-                tgl_str = str(tanggal)
+            # Filter Menu Admin untuk Menghapus Data Pemesanan
+            if st.session_state.user_role == "admin":
+                st.markdown("---")
+                st.markdown("### 🛠️ Menu Manajemen Admin")
                 
-                # Filter Minggu ISO
-                iso_ini = hari_ini.isocalendar()
-                iso_booking = tanggal.isocalendar()
-                bisa_simpan = True
-
-                if not keperluan.strip():
-                    st.error(" Isi keperluan training!")
-                    bisa_simpan = False
-                if bisa_simpan and j_mulai >= j_selesai:
-                    st.error(" Jam Selesai harus lebih besar dari Jam Mulai.")
-                    bisa_simpan = False
-                if bisa_simpan and (tanggal.month != hari_ini.month or tanggal.year != hari_ini.year):
-                    # iso[1] adalah elemen penunjuk Nomor Minggu ISO murni (integer)
-                    if (iso_booking[1] != iso_ini[1]) or (iso_booking[0] != iso_ini[0]):
-                        st.error(f" Gagal! Diizinkan hanya untuk bulan berjalan atau dalam minggu berjalan yang sama.")
-                        bisa_simpan = False
-
-                if bisa_simpan:
-                    df_db = load_cloud_data()
-                    df_dept_hari = df_db[(df_db["Departemen"].astype(str).str.upper() == user_dept_clean.upper()) & (df_db["Tanggal"] == tgl_str)]
-                    if not df_dept_hari.empty:
-                        st.error(" Departemen Anda sudah melakukan booking di tanggal ini!")
-                        bisa_simpan = False
-                if bisa_simpan:
-                    new_row = pd.DataFrame([[user_dept_clean.upper(), r_pilih, tgl_str, j_mulai.strftime("%H:%M"), j_selesai.strftime("%H:%M"), keperluan, fullname_clean]], columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
-                    new_row.to_csv(CLOUD_DB, mode='a', header=False, index=False)
-                    st.success(" Berhasil dipesan!")
-                    st.rerun()
-
-    # ==============================================================================
-    # 5. TAMPILAN KALENDER PENANGGALAN KERJA (SENIN - JUMAT) AKURAT 100%
-    # ==============================================================================
-    st.markdown("---")
-    st.subheader(" Kalender Pemakaian Ruang Training (Senin - Jumat)")
-    if "m" not in st.session_state: st.session_state.m = datetime.today().month
-    if "y" not in st.session_state: st.session_state.y = datetime.today().year
-
-    nav1, nav2, nav3 = st.columns(3)
-    if nav1.button("Bulan Lalu"):
-        st.session_state.m = 12 if st.session_state.m == 1 else st.session_state.m - 1
-        if st.session_state.m == 12: st.session_state.y -= 1
-        st.rerun()
-    if nav3.button("Bulan Depan"):
-        st.session_state.m = 1 if st.session_state.m == 12 else st.session_state.m + 1
-        if st.session_state.m == 1: st.session_state.y += 1
-        st.rerun()
-
-    nama_bulan = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-    nav2.markdown(f"<h3 style='text-align: center;'> 📅 {nama_bulan[st.session_state.m]} {st.session_state.y}</h3>", unsafe_allow_html=True)
-
-    html_cal = '<table style="width:100%; border-collapse: collapse; background-color: white; border: 2px solid #555;"><tr style="background-color: #e0e0e0; text-align: center; font-weight: bold;"><th style="padding: 10px; border: 2px solid #555; width: 20%;">Senin</th><th style="padding: 10px; border: 2px solid #555; width: 20%;">Selasa</th><th style="padding: 10px; border: 2px solid #555; width: 20%;">Rabu</th><th style="padding: 10px; border: 2px solid #555; width: 20%;">Kamis</th><th style="padding: 10px; border: 2px solid #555; width: 20%;">Jum\'at</th></tr>'
-    
-    df_cal = load_cloud_data()
-    raw_records = df_cal.to_dict(orient="records") if not df_cal.empty else []
-    
-    # MENENTUKAN HARI PERTAMA DALAM BULAN BERJALAN
-    hari_pertama_bulan = date(st.session_state.y, st.session_state.m, 1).weekday() # 0=Senin, 1=Selasa, dst.
-    
-    html_cal += "<tr style='height: 110px; vertical-align: top;'> "
-    kolom_hari = 0
-    
-    # Langkah 1: Mengisi kotak kosong jika hari pertama bulan bukan hari Senin
-    if hari_pertama_bulan < 5:  # Jika hari pertama jatuh di antara Senin - Jumat
-        for blank in range(hari_pertama_bulan):
-            html_cal += "<td style='border: 2px solid #555; background-color: #f7f7f7;'></td>"
-            kolom_hari += 1
-
-    # Langkah 2: Mengisi angka tanggal asli secara berurutan
-    for d in range(1, 32):
-        try:
-            valid_date = date(st.session_state.y, st.session_state.m, d)
-            nama_hari_ke = valid_date.weekday()
-            
-            # Abaikan jika hari Sabtu (5) atau Minggu (6)
-            if nama_hari_ke > 4:
-                continue
+                # Menggunakan indeks baris di Google Sheets sebagai pilihan hapus data
+                opsi_hapus = [f"[{idx}] {row['Tanggal']} | {row['Ruangan']} ({row['Jam Mulai']}-{row['Jam Selesai']}) - {row['Departemen']}" for idx, row in df_display.iterrows()]
+                pilihan_hapus = st.selectbox("Pilih Jadwal yang Ingin Dibatalkan/Dihapus", ["-- Pilih Jadwal --"] + opsi_hapus)
                 
-            tgl_cek = f"{st.session_state.y}-{st.session_state.m:02d}-{d:02d}"
-            list_hari = [row for row in raw_records if str(row.get("Tanggal", "")).strip() == tgl_cek]
-            bg = "#fff3e0" if len(list_hari) > 0 else "#ffffff"
-            info = ""
-            for r in list_hari:
-                info += f"<div style='font-size: 11px; margin-top: 4px; background-color: #ffe0b2; color: #e65100; padding: 3px; border-radius:3px; border: 1px solid #ffcc80;'>• <b>{r.get('Jam Mulai')}</b> [{r.get('Ruangan')}] {str(r.get('Departemen')).upper()}</div>"
+                if st.button("🔥 Batalkan & Hapus Pesanan", key="tombol_hapus_admin"):
+                    if pilihan_hapus != "-- Pilih Jadwal --":
+                        # Mengambil nilai indeks asli
+                        idx_asli = int(pilihan_hapus.split("]")[0].replace("[", ""))
+                        
+                        df_display_baru = df_display.drop(idx_asli).reset_index(drop=True)
+                        conn.update(worksheet="data_booking_v3", data=df_display_baru)
+                        
+                        st.success("🗑️ Jadwal pemesanan berhasil dibatalkan dan dihapus dari Cloud!")
+                        st.rerun()
+                    else:
+                        st.warning("Silakan pilih salah satu jadwal terlebih dahulu sebelum menghapus.")
+                st.markdown("---")
             
-            html_cal += f'<td style="border: 2px solid #555; background-color: {bg}; padding: 6px; color:#000000;"><b>{d}</b>{info}</td>'
-            kolom_hari += 1
-            
-            if kolom_hari == 5:
-                html_cal += "</tr><tr style='height: 110px; vertical-align: top;'>"
-                kolom_hari = 0
-        except:
-            break
-            
-    html_cal += "</tr></table>"
-    st.markdown(html_cal, unsafe_allow_html=True)
-
+            # Tampilkan tabel utama ke halaman aplikasi pengguna
+            st.dataframe(df_display, use_container_width=True, hide_index=True)
