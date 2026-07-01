@@ -1,57 +1,36 @@
 import streamlit as st
 import pandas as pd
 import hashlib
-import gspread
-from google.oauth2.service_account import Credentials
 from datetime import datetime, time, date
+from streamlit_gsheets import GSheetsConnection
 
 # ==============================================================================
-# 1. KONFIGURASI UTAMA & KONEKSI SECURE DATABASE GSPREAD
+# 1. KONFIGURASI UTAMA & DATABASE CLOUD GOOGLE SHEETS
 # ==============================================================================
 RUANGAN = {"Training 1": "45 Orang", "Training 2": "15 Orang", "Training 3": "15 Orang"}
 
 st.set_page_config(page_title="Booking Ruangan Cloud", layout="wide")
 
-# Menginisialisasi koneksi gspread dengan metode pembacaan data JSON langsung
-scope = ["https://googleapis.com", "https://googleapis.com"]
+# Menggunakan fitur bawaan resmi Streamlit untuk terhubung langsung ke Sheets
+conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Menyalin isi file JSON asli dari VS Code secara utuh ke dalam kode Python
-info_kredensial = {
-  "type": "service_account",
-  "project_id": "booking-ruangan-501103",
-  "private_key_id": "6c7bded3b3351913f91046fd8b6a4c61ceb79203",
-  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDFle1TXkz1h2we\nVyBvzUD9BRrZd5dwGH30pD2IlxvrsI6wKEmOniEdpNbkBdHfjMsw3ktm8TNTjnKq\n0FbZZpDWpktngLnYvUZUBk9Kjs8TxsViU5DjRf68WZUojAIXEQLHs4DtI5w9SpSg\nFuQXwDEk0IPJnvBMuwuI/4HawjuOXf1a4YfhyRK0jqgvtLraOorVb4EmvRG1ZdFL\n/CK3yaTRDHKAoXFFX32e3QYrqXTkwwrYbzGrrb7ROUpQPLfELUlOz0SOMgmDowYy\nlG9KgbJkD0lOay1wBmDrQ5ONZACjkw9Au8VgsFReBxx0zPowkmX2Hn68OyuDfug2\nqJuwA1vtAgMBAAECggEAAII+EfKidphibCKTzA3mfrBKbShsbKa3fk+E9ArVkNIL\n0ALOi643Dh08S2qDa5Swej/8SDfTRsINZAi0zIsB0PetJodTky4LlhBNGHdNK7Md\nk379FsS5nvEJHAleQQJzdCGvcYzfrF26i737WN9PERXzXOvKmRv7L99ejXpmDlwI\n7kW4eYX1Hq+2ZTOrzAIx70EOLtWrqZz7eDavunNFJRvY0hdX2b2A6hgLn0MK2Ezs\n7Z2seTtT84gw2Hkgy3hLH7JWaLaj3ZuVgZcqtRzuWafQC2mwa+oyEzCSgxsge455\nC2ZcivhWZHFj1Kqf0pgyzIrR3doPuQ/cZDCmQUD4iQKBgQD8LfDzgqd2oY4BhYW+\nUhYinVAUVM50HV2MsPieoAH1GQn4YqXwHEBdPOMgqK3JER8y08l5Jc8KhoYM2pfY\ncqyxxCgQWHkqcx87a3Po7GhLKmOIiXdpwt3sDVsrCp6mYht3lgp9aFNXjfxxhAth\nvWVRvn/GEpTWkZvuPcLpn0fo+QKBgQDIlD94UNKBr+QVKMFh5pcHldCidl+jnF0Y\nsYhYRUslF/l7WUcQxfoai8FwO8/k9Dmu/s3JWo5nIqmQpdmP544aZq6g+tzH7tZM\nOENYDXxyF6tzDu60ukEftRqLIdlRoj7t86cgyGD9JVNzGor/p9x1Ul4BmXNl0woc\naFZrSmqblQKBgQDwbZCjafbliOPOGZJIwRRvjhJyP+TSGck+QN/YxG75UhUKZmsU\nwKqw+kMFuSxvXc6j8/3Lbju2KkmV6bcJ21NA7ObRprhmu3mUej75XKOWvmRFIeLi\nx7IzwwwfvjFCKplLa5a2uAd1m16Kj70WQ69cv0Ys/zw+UncbLnEtsfmqaQKBgQC7\nhp6whh/JUAEWJzxlo4igdtjQi4tvE8mWRKUMofxXecquIBHpBK+IEhGQNNtxW0Ry\n75bGIfvxQN73dZeqivq4hDfQGbpA0nNYX2HW+QTYRnjs4ZEbNuecFV3zpnnfcKkV\nHy+p3q2O/0691psN2oqqxY9OP4E8OcrCNGpXdQOm4QKBgFgxZLnt89ew2wx82Nge\nkpl+zqhiXrpApOQwN5DwcObi0jYpqU5J1kzXX1KjtNL6NZLtudoIhHBhYpi8xtn6\nlS/sHLqg88V/OyEo1p8faVhtTDFp5Dzwk03Of4eWIpNQ1+DywBxqXNKwrU+V0Gth\nvb6TazDyYUQmoPWh5DoceYjN\n-----END PRIVATE KEY-----\n",
-  "client_email": "booking-ruang@://gserviceaccount.com",
-  "client_id": "106625935334414916584",
-  "auth_uri": "https://google.com",
-  "token_uri": "https://googleapis.com",
-  "auth_provider_x509_cert_url": "https://googleapis.com",
-  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/booking-ruang%40://gserviceaccount.com",
-  "universe_domain": "googleapis.com"
-}
-
-kredensial = Credentials.from_service_account_info(info_kredensial, scopes=scope)
-gc = gspread.authorize(kredensial)
-
-# Hubungkan langsung link Google Sheets database asli milik Anda di bawah ini
-sh = gc.open_by_url("https://docs.google.com/spreadsheets/d/16BP4tZ57ot6isrNCUt1h-MQkq0GmQBGhz6nVdw9He-4/edit?gid=0#gid=0")
-
+def hash_password(password_teks):
+    """Mengubah password teks biasa menjadi kode enkripsi SHA-256 aman"""
+    return hashlib.sha256(str(password_teks).encode()).hexdigest()
 
 def load_cloud_data():
     """Membaca daftar booking ruangan dari Google Sheets secara real-time"""
     try:
-        worksheet = sh.worksheet("data_booking_v3")
-        records = worksheet.get_all_records()
-        return pd.DataFrame(records).fillna("").astype(str)
+        df = conn.read(worksheet="data_booking_v3", ttl=0)
+        return df.fillna("").astype(str)
     except:
         return pd.DataFrame(columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
 
 def load_user_data():
     """Membaca data akun pengguna dari Google Sheets secara real-time"""
     try:
-        worksheet = sh.worksheet("data_user_cloud")
-        records = worksheet.get_all_records()
-        return pd.DataFrame(records).fillna("").astype(str)
+        df = conn.read(worksheet="data_user_cloud", ttl=0)
+        return df.fillna("").astype(str)
     except:
         return pd.DataFrame(columns=["Username", "Password", "Nama Lengkap", "Departemen"])
 
@@ -81,14 +60,13 @@ if not st.session_state.logged_in:
                     df_user = load_user_data()
                     p_hashed = hash_password(p)
                     
-                    # Pencocokan data login ke Google Sheets
                     user_match = df_user[(df_user["Username"].str.upper() == u.upper()) & (df_user["Password"] == p_hashed)]
                     
                     if not user_match.empty:
                         st.session_state.logged_in = True
                         st.session_state.username = u.upper()
-                        st.session_state.fullname = str(user_match["Nama Lengkap"].values[0])
-                        st.session_state.user_dept = str(user_match["Departemen"].values[0])
+                        st.session_state.fullname = str(user_match["Nama Lengkap"].values)
+                        st.session_state.user_dept = str(user_match["Departemen"].values)
                         st.session_state.user_role = "admin" if u.upper() == "ADMIN" else "user"
                         st.success(f"Selamat Datang, {st.session_state.fullname}!")
                         st.rerun()
@@ -126,9 +104,10 @@ if not st.session_state.logged_in:
                         if not df_user_lama.empty and reg_nik.upper() in df_user_lama["Username"].str.upper().values:
                             st.error("NIK tersebut sudah terdaftar di sistem!")
                         else:
-                            # Menambahkan data user baru menggunakan gspread append_row
-                            worksheet_user = sh.worksheet("data_user_cloud")
-                            worksheet_user.append_row([reg_nik.upper(), hash_password(reg_p), reg_name, reg_dept.upper()])
+                            new_user_row = pd.DataFrame([[reg_nik.upper(), hash_password(reg_p), reg_name, reg_dept.upper()]], 
+                                                        columns=["Username", "Password", "Nama Lengkap", "Departemen"])
+                            df_user_baru = pd.concat([df_user_lama, new_user_row], ignore_index=True)
+                            conn.update(worksheet="data_user_cloud", data=df_user_baru)
                             
                             st.success("Registrasi Berhasil! Silakan masuk kembali.")
                             st.session_state.page_control = "login"
@@ -148,14 +127,14 @@ else:
     user_dept_clean = str(st.session_state.user_dept).replace("['", "").replace("']", "")
     
     # Membuat 2 kolom layout utama (Kiri: Form Input, Kanan: Informasi Status)
-    k_kiri, k_kanan = st.columns()
+    k_kiri, k_kanan = st.columns(2)
     
     with k_kiri:
         st.markdown(f"### 👤 Logged in as: **{fullname_clean}** ({st.session_state.user_role.upper()})")
         st.markdown(f"🏢 Dept: **{user_dept_clean}**")
         
         st.subheader("Formulir Pemesanan Ruangan")
-        with st.form("form_pemesanan_ruangan_cloud_gspread"):
+        with st.form("form_pemesanan_ruangan_cloud_gsheets"):
             r_pilih = st.selectbox("Pilih Ruangan yang Akan Digunakan", list(RUANGAN.keys()))
             tgl_pilih = st.date_input("Pilih Tanggal Acara", min_value=date.today())
             j_mulai = st.time_input("Jam Mulai Penggunaan", time(8, 0))
@@ -172,7 +151,6 @@ else:
                         tgl_str = tgl_pilih.strftime("%Y-%m-%d")
                         df_booking = load_cloud_data()
                         
-                        # Filter bentrokan jadwal ruangan pada tanggal yang sama
                         if not df_booking.empty and "Ruangan" in df_booking.columns:
                             df_hari_ini = df_booking[(df_booking["Ruangan"] == r_pilih) & (df_booking["Tanggal"] == tgl_str)]
                         else:
@@ -186,29 +164,26 @@ else:
                             # Logika validasi tabrakan jam
                             if not (j_selesai <= b_mulai or j_mulai >= b_selesai):
                                 bisa_simpan = False
-                                st.error(f"❌ JADWAL BENTROK! Ruangan telah dipesan oleh Dept. {baris['Departemen']} (Jam {baris['Jam Mulai']} - {baris['Jam Selesai']})")
+                                st.error(f"❌ JADWAL BENTROK! Di-booking oleh Dept. {baris['Departemen']} (Jam {baris['Jam Mulai']} - {baris['Jam Selesai']})")
                                 break
                         
                         if bisa_simpan:
-                            # Menambahkan baris pemesanan menggunakan gspread append_row
-                            worksheet_booking = sh.worksheet("data_booking_v3")
-                            worksheet_booking.append_row([
-                                user_dept_clean.upper(), 
-                                r_pilih, 
-                                tgl_str, 
-                                j_mulai.strftime("%H:%M"), 
-                                j_selesai.strftime("%H:%M"), 
-                                keperluan, 
-                                fullname_clean
-                            ])
+                            new_row = pd.DataFrame([[
+                                user_dept_clean.upper(), r_pilih, tgl_str, 
+                                j_mulai.strftime("%H:%M"), j_selesai.strftime("%H:%M"), 
+                                keperluan, fullname_clean
+                            ]], columns=["Departemen", "Ruangan", "Tanggal", "Jam Mulai", "Jam Selesai", "Keperluan", "Nama Pemesan"])
                             
-                            st.success("🎉 Ruangan Berhasil Dipesan di Cloud Database!")
+                            df_booking_baru = pd.concat([df_booking, new_row], ignore_index=True)
+                            conn.update(worksheet="data_booking_v3", data=df_booking_baru)
+                            
+                            st.success("🎉 Ruangan Berhasil Dipesan!")
                             st.rerun()
                 else:
                     st.warning("Mohon tuliskan keperluan agenda acara Anda.")
         
         st.write("")
-        if st.button("🚪 Keluar Aplikasi (Logout)", key="tombol_logout_sistem_gspread"):
+        if st.button("🚪 Keluar Aplikasi (Logout)", key="tombol_logout_sistem_gsheets"):
             st.session_state.logged_in = False
             st.session_state.page_control = "login"
             st.rerun()
@@ -216,7 +191,7 @@ else:
     with k_kanan:
         st.subheader("📅 Jadwal Penggunaan Ruangan Terkini")
         
-        if st.button("🔄 Segarkan Data (Refresh)", key="tombol_refresh_tabel_gspread"):
+        if st.button("🔄 Segarkan Data (Refresh)", key="tombol_refresh_tabel_gsheets"):
             st.rerun()
             
         df_display = load_cloud_data()
@@ -237,18 +212,12 @@ else:
                 opsi_hapus = [f"[{idx}] {row['Tanggal']} | {row['Ruangan']} ({row['Jam Mulai']}-{row['Jam Selesai']}) - {row['Departemen']}" for idx, row in df_display.iterrows()]
                 pilihan_hapus = st.selectbox("Pilih Jadwal yang Ingin Dibatalkan/Dihapus", ["-- Pilih Jadwal --"] + opsi_hapus)
                 
-                if st.button("🔥 Batalkan & Hapus Pesanan", key="tombol_hapus_admin_gspread"):
+                if st.button("🔥 Batalkan & Hapus Pesanan", key="tombol_hapus_admin_gsheets"):
                     if pilihan_hapus != "-- Pilih Jadwal --":
-                        idx_asli = int(pilihan_hapus.split("]")[0].replace("[", ""))
-                        worksheet_booking = sh.worksheet("data_booking_v3")
-                        
-                        # Ditambah 2 karena indeks dataframe dari 0 dan Baris 1 di Sheets dipakai Judul Kolom
-                        worksheet_booking.delete_rows(idx_asli + 2)
-                        
-                        st.success("🗑️ Jadwal pemesanan berhasil dibatalkan dan dihapus dari Cloud!")
+                        idx_asli = int(pilihan_hapus.split("]").replace("[", ""))
+                        df_display_baru = df_display.drop(idx_asli).reset_index(drop=True)
+                        conn.update(worksheet="data_booking_v3", data=df_display_baru)
+                        st.success("🗑️ Jadwal pemesanan berhasil dihapus!")
                         st.rerun()
-                    else:
-                        st.warning("Silakan pilih salah satu jadwal terlebih dahulu sebelum menghapus.")
-                st.markdown("---")
             
             st.dataframe(df_display, use_container_width=True, hide_index=True)
