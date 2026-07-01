@@ -18,7 +18,7 @@ kredensial = Credentials.from_service_account_info(st.secrets["gspread"], scopes
 gc = gspread.authorize(kredensial)
 
 # Membuka file spreadsheet berdasarkan URL dari Secrets
-sh = gc.open_by_url(https://docs.google.com/spreadsheets/d/16BP4tZ57ot6isrNCUt1h-MQkq0GmQBGhz6nVdw9He-4/edit?gid=0#gid=0)
+sh = gc.open_by_url("https://docs.google.com/spreadsheets/d/16BP4tZ57ot6isrNCUt1h-MQkq0GmQBGhz6nVdw9He-4/edit?gid=0#gid=0")
 
 def hash_password(password_teks):
     """Mengubah password teks biasa menjadi kode enkripsi SHA-256 aman"""
