@@ -90,7 +90,7 @@ if not st.session_state.logged_in:
         with st.form("form_pendaftaran_user_baru"):
             reg_nik = st.text_input("Masukkan NIK Baru").strip()
             reg_name = st.text_input("Masukkan Nama Lengkap Anda").strip()
-            reg_dept = st.selectbox("Pilih Departemen/Section", ["LOGISTIC", "PRODUCTION", "HRD", "GA", "QUALITY", "ENGINEERING", "MANAGEMENT"])
+            reg_dept = st.text_input("Masukkan Departemen/Section Anda").strip()
             reg_p = st.text_input("Buat Password Anda", type="password").strip()
             reg_p_confirm = st.text_input("Konfirmasi Password Anda", type="password").strip()
             
