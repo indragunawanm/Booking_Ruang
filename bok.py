@@ -12,9 +12,16 @@ RUANGAN = {"Training 1": "45 Orang", "Training 2": "15 Orang", "Training 3": "15
 
 st.set_page_config(page_title="Booking Ruangan Cloud", layout="wide")
 
-# Menginisialisasi koneksi gspread menggunakan Secrets Streamlit
+# Menginisialisasi koneksi gspread dengan metode injeksi kunci langsung
 scope = ["https://googleapis.com", "https://googleapis.com"]
-kredensial = Credentials.from_service_account_info(st.secrets["gspread"], scopes=scope)
+
+# Menggabungkan data info Secrets dasar dengan kunci privat dari internal teks
+info_kredensial = dict(st.secrets["gspread"])
+
+# Masukkan seluruh kunci panjang asli Anda dari baris 5 VS Code ke dalam tanda kutip di bawah ini:
+info_kredensial["private_key"] = "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDFle1TXkz1h2we\nVyBvzUD9BRrZd5dwGH30pD2IlxvrsI6wKEmOniEdpNbkBdHfjMsw3ktm8TNTjnKq\n0FbZZpDWpktngLnYvUZUBk9Kjs8TxsViU5DjRf68WZUojAIXEQLHs4DtI5w9SpSg\nFuQXwDEk0IPJnvBMuwuI/4HawjuOXf1a4YfhyRK0jqgvtLraOorVb4EmvRG1ZdFL\n/CK3yaTRDHKAoXFFX32e3QYrqXTkwwrYbzGrrb7ROUpQPLfELUlOz0SOMgmDowYy\nlG9KgbJkD0lOay1wBmDrQ5ONZACjkw9Au8VgsFReBxx0zPowkmX2Hn68OyuDfug2\nqJuwA1vtAgMBAAECggEAAII+EfKidphibCKTzA3mfrBKbShsbKa3fk+E9ArVkNIL\n0ALOi643Dh08S2qDa5Swej/8SDfTRsINZAi0zIsB0PetJodTky4LlhBNGHdNK7Md\nk379FsS5nvEJHAleQQJzdCGvcYzfrF26i737WN9PERXzXOvKmRv7L99ejXpmDlwI\n7kW4eYX1Hq+2ZTOrzAIx70EOLtWrqZz7eDavunNFJRvY0hdX2b2A6hgLn0MK2Ezs\n7Z2seTtT84gw2Hkgy3hLH7JWaLaj3ZuVgZcqtRzuWafQC2mwa+oyEzCSgxsge455\nC2ZcivhWZHFj1Kqf0pgyzIrR3doPuQ/cZDCmQUD4iQKBgQD8LfDzgqd2oY4BhYW+\nUhYinVAUVM50HV2MsPieoAH1GQn4YqXwHEBdPOMgqK3JER8y08l5Jc8KhoYM2pfY\ncqyxxCgQWHkqcx87a3Po7GhLKmOIiXdpwt3sDVsrCp6mYht3lgp9aFNXjfxxhAth\nvWVRvn/GEpTWkZvuPcLpn0fo+QKBgQDIlD94UNKBr+QVKMFh5pcHldCidl+jnF0Y\nsYhYRUslF/l7WUcQxfoai8FwO8/k9Dmu/s3JWo5nIqmQpdmP544aZq6g+tzH7tZM\nOENYDXxyF6tzDu60ukEftRqLIdlRoj7t86cgyGD9JVNzGor/p9x1Ul4BmXNl0woc\naFZrSmqblQKBgQDwbZCjafbliOPOGZJIwRRvjhJyP+TSGck+QN/YxG75UhUKZmsU\nwKqw+kMFuSxvXc6j8/3Lbju2KkmV6bcJ21NA7ObRprhmu3mUej75XKOWvmRFIeLi\nx7IzwwwfvjFCKplLa5a2uAd1m16Kj70WQ69cv0Ys/zw+UncbLnEtsfmqaQKBgQC7\nhp6whh/JUAEWJzxlo4igdtjQi4tvE8mWRKUMofxXecquIBHpBK+IEhGQNNtxW0Ry\n75bGIfvxQN73dZeqivq4hDfQGbpA0nNYX2HW+QTYRnjs4ZEbNuecFV3zpnnfcKkV\nHy+p3q2O/0691psN2oqqxY9OP4E8OcrCNGpXdQOm4QKBgFgxZLnt89ew2wx82Nge\nkpl+zqhiXrpApOQwN5DwcObi0jYpqU5J1kzXX1KjtNL6NZLtudoIhHBhYpi8xtn6\nlS/sHLqg88V/OyEo1p8faVhtTDFp5Dzwk03Of4eWIpNQ1+DywBxqXNKwrU+V0Gth\nvb6TazDyYUQmoPWh5DoceYjN\n-----END PRIVATE KEY-----\n"
+
+kredensial = Credentials.from_service_account_info(info_kredensial, scopes=scope)
 gc = gspread.authorize(kredensial)
 
 # Membuka file spreadsheet berdasarkan URL dari Secrets
