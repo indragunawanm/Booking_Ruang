@@ -131,7 +131,7 @@ if "page_control" not in st.session_state:
 if not st.session_state.logged_in:
     if st.session_state.page_control == "login":
         st.subheader("Silakan Masuk Menggunakan NIK dan Password Anda")
-        with st.form("form_login"):
+        with st.form("form_masuk_akun"):
             u = st.text_input("Masukkan NIK Anda").strip()
             p = st.text_input("Masukkan Password", type="password").strip()
             if st.form_submit_button("Masuk Aplikasi"):
