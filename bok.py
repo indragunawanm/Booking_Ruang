@@ -107,7 +107,8 @@ if not st.session_state.logged_in:
                             new_user_row = pd.DataFrame([[reg_nik.upper(), hash_password(reg_p), reg_name, reg_dept.upper()]], 
                                                         columns=["Username", "Password", "Nama Lengkap", "Departemen"])
                             df_user_baru = pd.concat([df_user_lama, new_user_row], ignore_index=True)
-                            conn.update(worksheet="data_user_cloud", data=df_user_baru)
+                            conn.update(spreadsheet="https://google.com", worksheet="data_user_cloud", data=df_user_baru)
+
                             
                             st.success("Registrasi Berhasil! Silakan masuk kembali.")
                             st.session_state.page_control = "login"
